@@ -8,29 +8,7 @@
 #include "render.h"
 #include "context.h"
 
-// float fbGain = 3.0; // For Lorentz Sensor 4 = very safe
-// float adcScale = 1.0; // for attenuating signal when target RMS is achieved
-
-// int currRMS = 0; // the current RMS value of actuated string
-// int targetRMS = 2000; // the target RMS value of actuated string (0-4096?)
-
 int noise = 0; // same noise variable for both channels
-// float noiseScale = 0;
-// int POT2_VAL = 0;
-
-// volatile int CH1_adcValue = 0; // value that channel 1 reads from the string
-// volatile int lightThresh = 4096;  //value adc must surpass to trigger light
-
-// volatile bool CH1_polValue = 0;
-// volatile bool CH1_lastPolValue = 0;
-
-int deadZone = 0;
-volatile int count = 0;
-int maxPulseLength = 20000; //nanoseconds
-
-// //for RMS calculation and fundamental frequency estimate
-// float freq[N];
-// int i = 0;
 
 LorentzContext context = {
   .ch = {
@@ -45,7 +23,7 @@ LorentzContext context = {
       .enablePin   = CH1_ENABLE,
       .in    = 0.0f,
       .out   = 0.0f,
-      .polarity  = false,
+      // .polarity  = false,
       .measuredRMS = 0,
       // .outPolValue  = false,
       .lastPolValue = false,
@@ -66,7 +44,7 @@ LorentzContext context = {
         .enablePin   = CH2_ENABLE,
         .in    = 0.0f,
         .out   = 0.0f,
-        .polarity  = false,
+        // .polarity  = false,
         .measuredRMS = 0,
         // .outPolValue  = false,
         .lastPolValue = false,
@@ -99,219 +77,61 @@ LorentzContext context = {
 
 void flexpwm_sm1_isr() {
   //\\ SENSE STAGE //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
-  // if (status & (1 << 12)) { //VAL0 interrupt (Channel A)
-    FLEXPWM2_SM1STS = (1 << 12);  // Writing 1 to bit 12 clears the VAL0 interrupt flag
+  FLEXPWM2_SM1STS = (1 << 12);  // Writing 1 to bit 12 clears the VAL0 interrupt flag
 
-    // OLD WAY /////////
-    // Read inputs
-    // CH1.adcValue = analogRead(CH1.adcPin);
-    // CH1.inPolValue = digitalRead(CH1.polarityPin);
-    // CH2.adcValue = analogRead(CH2.adcPin);
-    // CH2.inPolValue = digitalRead(CH2.polarityPin);
+  // Populate context
+  // NEW WAY - omits slow/sequential analogRead()
+  // Benchmark testing verefied with scope:
+  // scenario 1: using analogRead() for each channel makes critical isr time (the time from sense isr leading edge to pushing changes to actuate PWM) take 12.2uS
+  // scenario 2: directly addressing ADCs (as done below) cuts this time nearly in half to 6.3uS (now 3.3 after further ADC optimization!)
+  // scenario 3: DMA - to be tested!
 
-    // Populate context
-    // NEW WAY - omits the slow and sequential analogRead() - would be interesting to characterize/benchmark this vs old way
-    ADC1_HC0 = 7;
-    ADC2_HC0 = 8;
-    context.ch[0].polarity = digitalRead(context.ch[0].polarityPin);
-    context.ch[1].polarity = digitalRead(context.ch[1].polarityPin);
-    // CH1.inPolValue = digitalRead(CH1.polarityPin); // old way
-    // CH2.inPolValue = digitalRead(CH2.polarityPin);
-    while (!(ADC1_HS & ADC_HS_COCO0));  // COCO = "conversion complete"
-    while (!(ADC2_HS & ADC_HS_COCO0));
-    context.ch[0].in = ADC1_R0 / 4095.0f * float((2*context.ch[0].polarity - 1)); // total input signal, normalized to range of -1.0 to 1.0
-    context.ch[1].in = ADC2_R0 / 4095.0f * float((2*context.ch[1].polarity - 1)); // total input signal, normalized to range of -1.0 to 1.0
+  ADC1_HC0 = 7;
+  ADC2_HC0 = 8;
+  // waiting for conversion is the longest part of the process - about 3.3uS
+  // some processing /could/ be done in the meantime if desired
+  digitalWriteFast(GPIO_PIN, HIGH);
+  while (!(ADC1_HS & ADC_HS_COCO0) | !(ADC2_HS & ADC_HS_COCO0)); // COCO = "conversion complete"
+  digitalWriteFast(GPIO_PIN, LOW);
 
-    // CH1.adcValue = ADC1_R0;
-    // CH2.adcValue = ADC2_R0;
+  // total input signal, normalized to range of -1.0 to 1.0
+  context.ch[0].in = ADC1_R0 / 4095.0f * float((2*digitalRead(context.ch[0].polarityPin) - 1)); // CH1
+  context.ch[1].in = ADC2_R0 / 4095.0f * float((2*digitalRead(context.ch[1].polarityPin) - 1)); // CH2
 
-  //--------------------------------------------------------------------------------------------------
-    //\\// RENDER //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//
-    render(&context);
-
-    //\\// PROCESS & APPLY CHANGES /\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/
-
-    // CHANNEL 1 ////////////////
-    // CH1.outPolValue = CH1.inPolValue; // at least initially, we apply the same polarity to the output as comes in the input
-    // // float pulseWidth = (CH1_adcValue*fbGain/4.0)*(2.0f*float(CH1_polValue) - 1.0f) + dutyHarmonic; // comment back in when ready for harmonic synthesis :)
-    // CH1.pulseWidth = CH1.adcScale*(CH1.adcValue*CH1.fbGain/4.0)*(2.0f*float(CH1.inPolValue) - 1.0f) + noise*CH1.noiseScale; // + dutyHarmonic;
-    // if (CH1.activeDamp){CH1.pulseWidth = CH1.adcValue*CH1.fbGain*CH1.inPolValue;} // active damp???    
-
-    // // if summmed wave magnitued is negative, actuate other NFET.
-    // if (CH1.pulseWidth < 0.0f) { 
-    //   CH1.outPolValue = 0;
-    // } else {
-    //   CH1.outPolValue = 1;
-    //  }
-    
-    // CH1.pulseWidth = fabs(CH1.pulseWidth); // rectify pulse value (for when added noise or synthesized harmonic flips polarity of output
-
-    // // max pulse length check - will need to be smaller than this later.
-    // if (CH1.pulseWidth > FLEXPWM2_SM2VAL1*0.6) CH1.pulseWidth= FLEXPWM2_SM2VAL1*0.6;  // I'm worried this is a bit stupid, but for now the sense pulse cannot exceed the total period of one window
-
-    // // CHANNEL 2 /////////////////
-    // CH2.outPolValue = CH2.inPolValue; // we apply the same polarity to the output as comes in the input (for basic infinite sustain)
-    // // float pulseWidth = (CH1_adcValue*fbGain/4.0)*(2.0f*float(CH1_polValue) - 1.0f) + dutyHarmonic; // comment back in when ready for harmonic synthesis :)
-    // CH2.pulseWidth = CH2.adcScale*(CH2.adcValue*CH2.fbGain/4.0)*(2.0f*float(CH2.inPolValue) - 1.0f) + noise*CH2.noiseScale; // + dutyHarmonic;
-    //     if (CH2.activeDamp){CH2.pulseWidth = CH2.adcValue*CH2.fbGain*CH2.inPolValue;} // active damp???
-        
-    // // if summmed wave magnitued is negative, actuate other NFET.
-    // if (CH2.pulseWidth < 0.0f) { 
-    //   CH2.outPolValue = 0;
-    // } else {
-    //   CH2.outPolValue = 1;
-    //  }
-    
-    // CH2.pulseWidth = fabs(CH2.pulseWidth); // rectify pulse value
-
-    // // max pulse length check - will need to be smaller than this later.
-    // if (CH2.pulseWidth > FLEXPWM2_SM2VAL1*0.5) CH2.pulseWidth = FLEXPWM2_SM2VAL1*0.5;  // I'm worried this is a bit stupid, but for now the sense pulse cannot exceed the total period of one window
+  //\\// RENDER //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//
+  render(&context);
 
   //\\ UPDATE FLEXPWM MODULES  //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//
   // first, we constrain the values to -1.0 to 1.0 in render() returns any out-of-bounds values
-    context.ch[0].out = constrain(context.ch[0].out, -1.0f, 1.0f);
-    context.ch[1].out = constrain(context.ch[1].out, -1.0f, 1.0f);
+  context.ch[0].out = constrain(context.ch[0].out, -1.0f, 1.0f);
+  context.ch[1].out = constrain(context.ch[1].out, -1.0f, 1.0f);
 
-    // Using "FLEXPWM2_SM2VAL1/2.0" is deciding that 50% duty cycle is the MAX duty cycle of an actuate pulse
-    if (context.ch[0].out > 0) {
-      FLEXPWM2_SM2VAL3 = FLEXPWM2_SM2VAL4 + fabs(context.ch[0].out)*(FLEXPWM2_SM2VAL1/2.0);
-      FLEXPWM2_SM2VAL5 = FLEXPWM2_SM2VAL4;
-    } else if (context.ch[0].out < 0) {
-      FLEXPWM2_SM2VAL3 = FLEXPWM2_SM2VAL4;
-      FLEXPWM2_SM2VAL5 = FLEXPWM2_SM2VAL4 + fabs(context.ch[0].out)*(FLEXPWM2_SM2VAL1/2.0);
-    }
+  // Using "FLEXPWM2_SM2VAL1/2.0" is deciding that 50% duty cycle is the MAX duty cycle of an actuate pulse
+  if (context.ch[0].out > 0) {
+    FLEXPWM2_SM2VAL3 = FLEXPWM2_SM2VAL4 + fabs(context.ch[0].out)*(FLEXPWM2_SM2VAL1*0.35f);
+    FLEXPWM2_SM2VAL5 = FLEXPWM2_SM2VAL4;
+  } else if (context.ch[0].out < 0) {
+    FLEXPWM2_SM2VAL3 = FLEXPWM2_SM2VAL4;
+    FLEXPWM2_SM2VAL5 = FLEXPWM2_SM2VAL4 + fabs(context.ch[0].out)*(FLEXPWM2_SM2VAL1*0.35f);
+  }
 
-    // APPLY CHANGES
-    FLEXPWM2_MCTRL |= FLEXPWM_MCTRL_LDOK(SM0_MASK | SM1_MASK | SM2_MASK | SM3_MASK);
- 
-    // --------------------------------------------------------------------------------------------------
-    //\\ DO REMAINING NON-CRITICAL TASKS //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//
-    readUI();
+  // APPLY CHANGES
+  FLEXPWM2_MCTRL |= FLEXPWM_MCTRL_LDOK(SM0_MASK | SM1_MASK | SM2_MASK | SM3_MASK);
 
-    // Copy values from last time into context
-    for (int i = 0; i < 16; i++) {
-      context.sliders[i] = sliderStates[i];
-      context.buttons[i] = buttonStates[i];
-    }
-    context.pedals[0] = pedalStates[0];
-    context.pedals[1] = pedalStates[1];
+  // digitalWriteFast(GPIO_PIN, LOW); //  DIAGNOSTICS PIN (Pin 7) LOW
 
+  //\\ REMAINING NON-CRITICAL TASKS //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//
+  digitalWriteFast(GPIO_PIN, HIGH);
+  readUI(); // updates ui variables in context
+  digitalWriteFast(GPIO_PIN, LOW);
 
-  // // THE FOLLOWING NEEDS TO MIGRATE TO RENDER.CPP /OR/ BE RE-MANAGED TO BE A PART OF EACH CHANNEL
-    
-  //   // GAIN SET BY FIRST KNOB COLUMN 
-  //   // CH1.fbGain = sliderStates[0]*4.0;
-  //   // CH2.fbGain = sliderStates[4]*4.0;
-
-  //   // TARGET RMS SET BY 2ND KNOB COLUMN
-  //   CH1.targetRMS = sliderStates[1]*4096;
-  //   // CH1.targetRMS = pedalStates[0]*4096; // USE PEDAL INSTEAD
-  //   CH2.targetRMS = sliderStates[5]*4096;
-
-  //   // ADC SCALE WHEN MEASURED RMS TOO BIG
-  //   CH1.adcScale = constrain(((float)CH1.targetRMS - (float)CH1.measuredRMS)/1024.0, 0.0, 3.0);
-  //   CH2.adcScale = constrain(((float)CH2.targetRMS - (float)CH2.measuredRMS)/1024.0, 0.0, 3.0);
-
-  //   // CH2.adcScale = constrain(1.0 - (CH2.measuredRMS-CH2.targetRMS)/1024.0, 0.0, 1.0);
-
-  //   // MAX NOISE SENT BY 4TH KNOB COLUMN
-  //   noise = random(-4096, 4096); // Same noise signal can be used for both
-  //   CH1.noiseScale = sliderStates[3]*(constrain(1.0 - (CH1.measuredRMS/1024.0), 0.0, 1.0))*(float)CH1.targetRMS/4096.0f; // divide by 4096 instead of 2048 to leave more noise in the system. Noise currently cuts out entirely when RMS is half of ADC range
-  //   CH2.noiseScale = sliderStates[7]*(constrain(1.0 - (CH2.measuredRMS/1024.0), 0.0, 1.0))*(float)CH2.targetRMS/4096.0f; // divide by 4096 instead of 2048 to leave more noise in the system. Noise currently cuts out entirely when RMS is half of ADC range
-
-  //   CH1.activeDamp = buttonStates[8];
-  //   CH2.activeDamp = buttonStates[9];
-
-  //   ///CALCULATE RMS
-  //   updateRMS(CH1);
-  //   updateRMS(CH2);
-
-    // harmonic synthesis omitted for time being
-    //
-    // // for zero crossing detection
-    // if (CH1_polValue != CH1_lastPolValue && CH1_polValue) { //rising edge only
-    //   uint32_t currentTime = micros();
-    //   uint32_t period = currentTime - lastZeroCrossTime;
-    //   lastZeroCrossTime = currentTime;
-    //   if (period > 0){
-    //     fundamentalFreq = 1e6 / float(period); // Frequency in Hz assuming micros()
-    //   }
-    //   DEBUG_PRINT(harmN);
-    //   DEBUG_PRINT(' ');
-    //   // DEBUG_PRINT(500);
-    //   // DEBUG_PRINT(' ');
-    //   // DEBUG_PRINT(0);
-    //   // DEBUG_PRINT(' ');
-    //   DEBUG_PRINT(fundamentalFreq);
-    //   DEBUG_PRINT(' ');
-    //   DEBUG_PRINTLN(avgFrequency);
-    //   // if (fundamentalFreq < 500) {
-    //     updateAvgFrequency(fundamentalFreq);
-    //   // } // remove outliers
-    // }
-    // CH1_lastPolValue = CH1_polValue;
-    //
-    // // THINGS THAT CAN BE SLOW OR BEHIND BY 1 SAMPLE: ////
-    // fbGain = (analogRead(POT_PIN3)/1204.0); //Read analog pin to determine feedback gain
-    // harmGain3rd = (analogRead(POT_PIN2)/4.0); //Read analog pin to determine 3rd harmonic gain
-    // harmGain5th = (analogRead(POT_PIN4)/4.0); // Read analog pin to determine 4th harmonic gain
-    // // harmGain7th = (analogRead(POT_PIN1)/4.0); // Read analog pin to determine 4th harmonic gain
-
-    // harmN = (analogRead(POT_PIN2)/455+2);
-    // harmGainNth = (analogRead(POT_PIN4)/2.0);
-
-    // harmPhase3rd = analogRead(POT_PIN1) / 4095.0; //Read analog pin to adjust harmonic phase
-    // harmPhase3rd = 0; //Read analog pin to adjust harmonic phase
-    // harmPhase5th = harmPhase3rd; // for now, same phase offset for both
-    // harmPhase7th = harmPhase3rd; // for now, same phase offset for both
-    // harmPhaseNth = harmPhase3rd; // for now, same phase offset for both
-
-
-    // phaseIncBase = avgFrequency / float(SAMPLERATE);      // base freq increment at 20kHz PWM
-    
-    // // Arbitrary Nth harmonic handlings
-    // phaseIncNth = phaseIncBase * float(harmN);              // Nth
-    // phaseNth += phaseIncNth;
-    // if (phaseNth >= 1.0f) phaseNth -= 1.0f;
-
-    // //apply phase offset
-    // float adjustedPhaseNth = phaseNth + harmPhaseNth;
-    // if (adjustedPhaseNth >= 1.0f) adjustedPhaseNth -= 1.0f;
-
-
-    // //////// 3RD HARMONIC
-    // phaseInc3rd = phaseIncBase * 3.0f;              // 3rd harmonic increment
-    // phase3rd += phaseInc3rd;
-    // if (phase3rd >= 1.0f) phase3rd -= 1.0f;
-
-    // float adjustedPhase3rd = phase3rd + harmPhase3rd;    //apply phase offset
-    // if (adjustedPhase3rd >= 1.0f) adjustedPhase3rd -= 1.0f;
-
-    // //////// 5TH HARMONIC
-    // phaseInc5th = phaseIncBase * 5.0f;              // 5th harmonic increment
-    // phase5th += phaseInc5th;
-    // if (phase5th >= 1.0f) phase5th -= 1.0f;
-
-    // float adjustedPhase5th = phase5th + harmPhase5th;
-    // if (adjustedPhase5th >= 1.0f) adjustedPhase5th -= 1.0f;
-
-    // //////// 7TH HARMONIC
-    // phaseInc7th = phaseIncBase * 1.0f;              // 7th harmonic increment
-    // phase7th += phaseInc7th;
-    // if (phase7th >= 1.0f) phase7th -= 1.0f;
-
-    // float adjustedPhase7th = phase7th + harmPhase7th;    // apply phase offset
-    // if (adjustedPhase7th >= 1.0f) adjustedPhase7th -= 1.0f;
-
-    // // create 3rd harmonic waveform (square)
-    // // float harmonicVal = (adjustedPhase < 0.5f) ? 1.0f : -1.0f;
-    // // create 3rd harmonic waveform (sine)
-    // float harmonicValNth = getSineFromTable(adjustedPhaseNth);
-    // // float harmonicVal3rd = getSineFromTable(adjustedPhase3rd);
-    // // float harmonicVal5th = getSineFromTable(adjustedPhase5th);
-    // // float harmonicVal7th = getSineFromTable(adjustedPhase7th);
-    // // dutyHarmonic = harmonicVal3rd * harmGain3rd + harmonicVal5th * harmGain5th + harmonicVal7th * harmGain7th + harmonicValNth * harmGainNth;
-    // dutyHarmonic = harmonicValNth * harmGainNth;
+  // Copy values from last time into context
+  for (int i = 0; i < 16; i++) {
+    context.sliders[i] = sliderStates[i];
+    context.buttons[i] = buttonStates[i];
+  }
+  context.pedals[0] = pedalStates[0];
+  context.pedals[1] = pedalStates[1];
 }
 
 void setOutputPWM(uint16_t val) {
@@ -456,15 +276,15 @@ void initADC() {
     ADC2_GC &= ~ADC_GC_AVGE;
 
     // Set 12-bit mode while preserving existing clock configuration
+    // ADC_CFG_MODE(2) = set 12-bit mode; ADC_CFG_MODE(1) = set 10-bit mode
     uint32_t cfg1 = ADC1_CFG;
     cfg1 &= ~(ADC_CFG_MODE(3) | ADC_CFG_ADSTS(3) | ADC_CFG_ADLSMP); // clear mode bits only
-    cfg1 |= ADC_CFG_MODE(2) | ADC_CFG_ADSTS(3) | ADC_CFG_ADLSMP;    // set 12-bit mode
+    cfg1 |= ADC_CFG_MODE(2) | ADC_CFG_ADSTS(0); // | ADC_CFG_ADLSMP;    // set 12-bit mode
     ADC1_CFG = cfg1;
 
-    // Set 12-bit mode while preserving existing clock configuration
     uint32_t cfg2 = ADC2_CFG;
     cfg2 &= ~(ADC_CFG_MODE(3) | ADC_CFG_ADSTS(3) | ADC_CFG_ADLSMP); // clear mode bits only
-    cfg2 |= ADC_CFG_MODE(2) | ADC_CFG_ADSTS(3) | ADC_CFG_ADLSMP;    // set 12-bit mode
+    cfg2 |= ADC_CFG_MODE(2) | ADC_CFG_ADSTS(0); // | ADC_CFG_ADLSMP;    
     ADC2_CFG = cfg2;
 
     // Warm-up trigger

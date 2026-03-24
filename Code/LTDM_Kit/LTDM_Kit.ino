@@ -3,7 +3,6 @@
 For Teensy 4.1 with RevB (black) PCB plugged into the UI PCB (RevA)
 
 To do:
-- Make sure Channel 2 works!
 - Reinstate Noisy initation/onset
 - Reinstate target RMS
 - Map faders to harmonics????
@@ -29,10 +28,11 @@ To do:
 void setup() {
   delay(2000);
   Serial.begin(115200);
-  analogReadResolution(12);
+  analogReadResolution(12);  // default should be 12
   analogReadAveraging(0);     // Disable averaging (set to 0) for faster reading... 3 seems to be fine, but 4 is far too much
   initUI();           // initialize the UI (delcare pins f)
   initFlexPWM();
+  pinMode(GPIO_PIN, OUTPUT);
   renderSetup(&context);
   setInterrupts();
   initSineTable();

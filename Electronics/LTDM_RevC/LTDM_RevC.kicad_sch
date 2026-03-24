@@ -9272,7 +9272,7 @@
 	)
 	(text "Ongoing questions:\n- reconsidering the idea of shunting the current out of the resistor"
 		(exclude_from_sim no)
-		(at -37.084 -11.176 0)
+		(at 11.43 7.112 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -9353,17 +9353,6 @@
 			)
 		)
 		(uuid "5bd50a15-361e-4027-a954-844577d2067c")
-	)
-	(text "change log:\n\n-removed connection between Pin 2<->9 and 3<->10 -- 9 & 10 were hardware interrupts, but changed to use software interrupts\n\n- preamplifier used to have balanced gain of 22.28 per stage for total of ~496, but now the first stage has more gain and the second less\n	- to incorporate the S+H and have a slightly hotter output from the S+H\n\n-5V regulator\n	- is switch-controlled rather than jumper controlled\n	- higher performance buck converter rather linear 7805\n\n- dissipating resistor changed from  680Ohm (1/4W) to 100Ohm (5W). Better dissipation of ringing.\n\n- Removed potentiometers from precision rectifiers - instead relying on 0.1% thin film resistors"
-		(exclude_from_sim no)
-		(at 181.864 -17.526 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "5c25722b-5fa4-4163-b6ad-4280f61fc4c2")
 	)
 	(text "Key:\nSW = switch (8)\nBT = button (8)\nFP = footpedal (2)\nSL = Slide Pot (8)\nRV = potentiometer (8)"
 		(exclude_from_sim no)
@@ -9457,17 +9446,6 @@
 			)
 		)
 		(uuid "b1c6315c-c581-4e8f-9a92-ee7468f9fc1c")
-	)
-	(text "Improvements to Rev B boards:\n☑ Change OPA350 to OPA2350 - now has correct pinout and is slightly cheaper\n☑ Fixed polarity of dc barrel jacks\n☑ Reverse polarity protection(!!)\n☑ Rearrange pinout to use FlexPWM output directly (going to have to perform some surgery on current board to verify a correct pinout).\n-On that note, add a dev board style pinheader breakout to give access to unused pins. Will be nice if I try to do any LED aliasing experiments --> NVM - using most pins already :)\n-move onboard 5V regulator jumper - too hard to reach currently when switching between teensy power over USB vs powered by 12V supply  (maybe replace with a small switch??)\n-mounting holes for Heat sink leads. (Planning to only use the TO-220-2 package resistors now bc of easy value swapping and easy heatsinking)\n☑ PCB mount 1/4” TRS Expression Pedal plugs (at least two). Maybe panel mount instead incase we want to make an enclosure for this board.\n\nStretch goals, though this might be getting beyond “just a few minor changes”\n-add an FX insert between string sense and teensy analog in for experimenting with pedals in the loop. Nice linear buffered output and input.\n-Small current-sense resistor before string is terminated to ground for measuring current with scope. Will be nice for string comparison analysis.\n-Add sample-and-hold (need to figure out the most appropriate spot for this), but this will be necessary for FX send/return anyway. Makes it possible to monitor/record/listen/add effects to a direct audio output rather than just relying on microphone, acoustic output, or piezo pickups. I’m very interested to hear what this sounds like and if it can be used to sound good.\n-Move analog switch - it needs to be able to switch the analogRead()’s input to come pre or post FX insert. This would be so we can switch between active sustaining with FX and active damping.\n-Adjustable string sense input gain with a trim pot might be nice - we’re occasionally clipping the input when a string really gets moving hard or we use stronger magnets.\n-Any leftover GPIO would be nice to throw some DIP switches or tactile buttons to for further devboard-iness\n-Add a current sense bit\n- Shift S&H to go between gain blocks"
-		(exclude_from_sim no)
-		(at 22.86 -62.23 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "b70d6233-f179-4289-b83a-2d6b8736243f")
 	)
 	(text "Excluding these because the true gate drivers are better (I think...)\nProperties:\n[X] Exclude from board (to exclude from board)\n[X] Do not populate (for the visual)\n\ncould be cheaper alternative to proper gate drivers"
 		(exclude_from_sim no)
@@ -42951,7 +42929,7 @@
 			)
 		)
 		(instances
-			(project "Lorentz_TDM_RevB_V2"
+			(project "LTDM_RevC"
 				(path "/21bd285d-c5a5-466d-bf8a-edfa6cbb8182"
 					(page "7")
 				)
@@ -43033,7 +43011,7 @@
 			)
 		)
 		(instances
-			(project "Lorentz_TDM_RevB_V2"
+			(project "LTDM_RevC"
 				(path "/21bd285d-c5a5-466d-bf8a-edfa6cbb8182"
 					(page "7")
 				)
@@ -43134,7 +43112,7 @@
 				(justify right)
 			)
 		)
-		(pin "STRING-" output
+		(pin "STRING1-" output
 			(at 511.81 120.65 0)
 			(uuid "ba80d613-2ebc-4233-a712-811e8c2cf59c")
 			(effects
@@ -43155,7 +43133,7 @@
 			)
 		)
 		(instances
-			(project "Lorentz_TDM_RevB_V2"
+			(project "LTDM_RevC"
 				(path "/21bd285d-c5a5-466d-bf8a-edfa6cbb8182"
 					(page "8")
 				)
@@ -43247,7 +43225,7 @@
 			)
 		)
 		(instances
-			(project "Lorentz_TDM_RevB_V2"
+			(project "LTDM_RevC"
 				(path "/21bd285d-c5a5-466d-bf8a-edfa6cbb8182"
 					(page "6")
 				)
@@ -43309,7 +43287,7 @@
 			)
 		)
 		(instances
-			(project "Lorentz_TDM_RevB_V2"
+			(project "LTDM_RevC"
 				(path "/21bd285d-c5a5-466d-bf8a-edfa6cbb8182"
 					(page "3")
 				)
@@ -43401,7 +43379,7 @@
 			)
 		)
 		(instances
-			(project "Lorentz_TDM_RevB_V2"
+			(project "LTDM_RevC"
 				(path "/21bd285d-c5a5-466d-bf8a-edfa6cbb8182"
 					(page "2")
 				)
@@ -43483,7 +43461,7 @@
 			)
 		)
 		(instances
-			(project "Lorentz_TDM_RevB_V2"
+			(project "LTDM_RevC"
 				(path "/21bd285d-c5a5-466d-bf8a-edfa6cbb8182"
 					(page "5")
 				)

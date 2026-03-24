@@ -22,6 +22,8 @@ constexpr int CH2_ADC_PIN       = 15; // (A1?) for rectified analog input
 constexpr int CH2_POLARITY_PIN  = 35; // for assessing polarity of signal (Postive or Negative)
 constexpr int CH2_CURRSENSE_PIN = 26; // (A12) rectified current measurement input
 
+constexpr int GPIO_PIN = 7; // a random pin for debugging and benchmarking
+
 // INPUTS //
 // UI multiplexers for buttons, sliders, and pots
 // Buttons

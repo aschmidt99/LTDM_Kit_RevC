@@ -2722,7 +2722,7 @@
 		)
 		(uuid "c8c2f877-3da6-4a64-ac8c-ac92acc28246")
 	)
-	(hierarchical_label "STRING-"
+	(hierarchical_label "STRING1-"
 		(shape output)
 		(at 209.55 54.61 0)
 		(effects
