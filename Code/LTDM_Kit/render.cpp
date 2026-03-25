@@ -2,23 +2,69 @@
 #include "render.h"
 #include "Arduino.h"
 
+// float fbGain;
+// float adcScale;
+// float noiseScale;
+// float targetRMS;
+
+const int numSamples = 200;
+float buffer[numSamples] = {};
+float sum = 0.0f;
+float currRMS = 0.0f;
+float targetRMS = 0.0f;
+int sampleIndex = 0;
+
+float noise = 0.0f;
+
 // one-time initialisation
 bool renderSetup(LorentzContext *context) {
     return true;
 }
 
+// void updateRMS(Channel &ch) {
+//     // Subtract the oldest sample's square from the running sum
+//     ch.sampleSum -= ch.samples[ch.sampleIndex] * ch.samples[ch.sampleIndex];
+
+//     // Store new sample and add its square to running sum
+//     ch.samples[ch.sampleIndex] = ch.adcValue;
+//     ch.sampleSum += ch.adcValue * ch.adcValue;
+
+//     // Advance circular buffer index
+//     ch.sampleIndex = (ch.sampleIndex + 1) % N;
+
+//     // Calculate RMS from running sum
+//     ch.measuredRMS = sqrt((float)ch.sampleSum / (float)N);
+// }
+
 // called once per sample
 void render(LorentzContext *context) {
+
+    // only update noise pulse width every N frames - third knob now acts as a rudimentary LPF on the noise
+    if ((context->frameCount % int(12 - context->sliders[2] * 12) == 0)) {noise = random(-1024, 1024)/1024.0f;}
+
+    // RMS calculation
+    sum -= buffer[sampleIndex] * buffer[sampleIndex];
+    buffer[sampleIndex] = fabs(context->ch[0].in);
+    sum += fabs(context->ch[0].in) * fabs(context->ch[0].in);
+
+    sampleIndex = (sampleIndex + 1) % numSamples;
+
+    currRMS = sqrt((float)sum / (float)numSamples);
+    context->ch[0].measuredRMS = currRMS;
     
     // Enable channel 1 with leftmost latching button (channel enable pin must be high)
     digitalWrite(context->ch[0].enablePin, context->buttons[0]);
 
-    // feedback gain controlled by knob 0
-    context->ch[0].fbGain = context->sliders[0];
+    context->ch[0].fbGain = context->sliders[0];            // feedback gain controlled by knob 0
+    context->ch[0].noiseScale = context->sliders[3];
+    float targetRMS = context->sliders[1];         // the targetRMS
+    // float targetRMS = context->pedals[0];
 
-    // apply input to output
-    context->ch[0].out = (context->ch[0].in * context->ch[0].fbGain);
+    float noiseFactor = (noise * constrain((context->ch[0].noiseScale - currRMS), 0.0f, 1.0f) * targetRMS);
+    float fbFactor =  context->ch[0].fbGain * 3.0f * (targetRMS - currRMS);
 
+    // apply input + noise to output
+    context->ch[0].out = context->ch[0].in * fbFactor + noiseFactor;    
     // context->audioOut[1] = fabs(context->audioIn[1] * context->sliders[4] * 4.0f * (2.0f * float(context->polarity[1]) - 1.0f));
 }
 

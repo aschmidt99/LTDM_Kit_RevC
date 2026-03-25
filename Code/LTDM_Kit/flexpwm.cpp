@@ -8,7 +8,7 @@
 #include "render.h"
 #include "context.h"
 
-int noise = 0; // same noise variable for both channels
+// int noise = 0; // same noise variable for both channels
 
 LorentzContext context = {
   .ch = {
@@ -17,7 +17,8 @@ LorentzContext context = {
       .fbGain      = 1.0f,
       .adcScale    = 1.0f,
       .noiseScale  = 0.0f,
-      .targetRMS   = 2000,
+      .targetRMS   = 0.0f,
+
       .adcPin      = CH1_ADC_PIN,
       .polarityPin = CH1_POLARITY_PIN,
       .enablePin   = CH1_ENABLE,
@@ -38,7 +39,8 @@ LorentzContext context = {
         .fbGain      = 1.0f,
         .adcScale    = 1.0f,
         .noiseScale  = 0.0f,
-        .targetRMS   = 2000,
+        .targetRMS   = 0.1f,
+
         .adcPin      = CH2_ADC_PIN,
         .polarityPin = CH2_POLARITY_PIN,
         .enablePin   = CH2_ENABLE,
@@ -57,28 +59,14 @@ LorentzContext context = {
   .buttons = {},
   .sliders = {},
   .pedals = {},
-  .sampleRate = SAMPLERATE
+  .frameCount = 0
 };
-
-// void updateRMS(Channel &ch) {
-//     // Subtract the oldest sample's square from the running sum
-//     ch.sampleSum -= ch.samples[ch.sampleIndex] * ch.samples[ch.sampleIndex];
-
-//     // Store new sample and add its square to running sum
-//     ch.samples[ch.sampleIndex] = ch.adcValue;
-//     ch.sampleSum += ch.adcValue * ch.adcValue;
-
-//     // Advance circular buffer index
-//     ch.sampleIndex = (ch.sampleIndex + 1) % N;
-
-//     // Calculate RMS from running sum
-//     ch.measuredRMS = sqrt((float)ch.sampleSum / (float)N);
-// }
 
 void flexpwm_sm1_isr() {
   //\\ SENSE STAGE //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
   FLEXPWM2_SM1STS = (1 << 12);  // Writing 1 to bit 12 clears the VAL0 interrupt flag
 
+  delayMicroseconds(3); //small amount of time for 
   // Populate context
   // NEW WAY - omits slow/sequential analogRead()
   // Benchmark testing verefied with scope:
@@ -90,15 +78,14 @@ void flexpwm_sm1_isr() {
   ADC2_HC0 = 8;
   // waiting for conversion is the longest part of the process - about 3.3uS
   // some processing /could/ be done in the meantime if desired
-  digitalWriteFast(GPIO_PIN, HIGH);
   while (!(ADC1_HS & ADC_HS_COCO0) | !(ADC2_HS & ADC_HS_COCO0)); // COCO = "conversion complete"
-  digitalWriteFast(GPIO_PIN, LOW);
 
   // total input signal, normalized to range of -1.0 to 1.0
   context.ch[0].in = ADC1_R0 / 4095.0f * float((2*digitalRead(context.ch[0].polarityPin) - 1)); // CH1
   context.ch[1].in = ADC2_R0 / 4095.0f * float((2*digitalRead(context.ch[1].polarityPin) - 1)); // CH2
 
   //\\// RENDER //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//
+  digitalWriteFast(GPIO_PIN, HIGH);
   render(&context);
 
   //\\ UPDATE FLEXPWM MODULES  //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//
@@ -117,13 +104,14 @@ void flexpwm_sm1_isr() {
 
   // APPLY CHANGES
   FLEXPWM2_MCTRL |= FLEXPWM_MCTRL_LDOK(SM0_MASK | SM1_MASK | SM2_MASK | SM3_MASK);
+  digitalWriteFast(GPIO_PIN, LOW);
 
   // digitalWriteFast(GPIO_PIN, LOW); //  DIAGNOSTICS PIN (Pin 7) LOW
 
   //\\ REMAINING NON-CRITICAL TASKS //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//
-  digitalWriteFast(GPIO_PIN, HIGH);
+  // digitalWriteFast(GPIO_PIN, HIGH);
   readUI(); // updates ui variables in context
-  digitalWriteFast(GPIO_PIN, LOW);
+  // digitalWriteFast(GPIO_PIN, LOW);
 
   // Copy values from last time into context
   for (int i = 0; i < 16; i++) {
@@ -132,6 +120,8 @@ void flexpwm_sm1_isr() {
   }
   context.pedals[0] = pedalStates[0];
   context.pedals[1] = pedalStates[1];
+
+  context.frameCount++;
 }
 
 void setOutputPWM(uint16_t val) {
@@ -293,7 +283,6 @@ void initADC() {
 }
 
 void initFlexPWM(){
-
   pinMode(CH1_ADC_PIN, INPUT);
   pinMode(CH1_POLARITY_PIN, INPUT);
   pinMode(CH1_ENABLE, OUTPUT);

@@ -5,6 +5,9 @@
 #include <SPI.h>
 #include "Adafruit_TLC5947.h"
 #include <cstdint>
+#include "render.h"
+
+extern float currRMS;
 
 volatile bool buttonStates[16] = {};
 volatile float sliderStates[16] = {};
@@ -117,6 +120,9 @@ void output() {
     Serial.print(" noiseScale: ");
     Serial.print(" ");
     Serial.print(context.ch[1].noiseScale);
+    Serial.println();
+
+    Serial.print(currRMS);
     Serial.println();
 
     updateLEDsFromButtons();

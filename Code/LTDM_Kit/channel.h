@@ -6,21 +6,21 @@
 #include "system_config.h"
 
 struct Channel {
-    float fbGain;
-    float adcScale;
-    float noiseScale; // 
-    float targetRMS;
+    float fbGain;               // amount of feedback to put back onto channel
+    float adcScale;             // used for scaling back feedback when target RMS is achieved
+    float noiseScale;           // amount of noise to put through channel
+    float targetRMS;            // the target RMS level (normalized to 0.0f-1.0f)
 
     // Hardware pins
-    int adcPin;
-    int polarityPin;
-    int enablePin;
+    const int adcPin;
+    const int polarityPin;
+    const int enablePin;
 
     // audio parameters
     volatile float in;          // normalised input signal -1.0 to 1.0
     volatile float out;         // normalised output signal -1.0 to 1.0
-
-    uint64_t samples[N];
+    
+    uint64_t samples[bufferLength];
     volatile uint64_t measuredRMS;
     volatile bool lastPolValue;
     bool activeDamp;
