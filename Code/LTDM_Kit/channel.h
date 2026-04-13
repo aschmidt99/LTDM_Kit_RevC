@@ -21,7 +21,7 @@ struct Channel {
     volatile float out;         // normalised output signal -1.0 to 1.0
     
     uint64_t samples[bufferLength];
-    volatile uint64_t measuredRMS;
+    volatile float measuredRMS;
     volatile bool lastPolValue;
     bool activeDamp;
     uint16_t sampleIndex;

@@ -9405,17 +9405,6 @@
 		)
 		(uuid "980d3204-02ee-4a91-842e-a02f7b1a3070")
 	)
-	(text "Check Zeners"
-		(exclude_from_sim no)
-		(at -56.896 299.466 0)
-		(effects
-			(font
-				(size 5 5)
-			)
-			(justify left)
-		)
-		(uuid "9e7c9a0b-96f8-4387-b122-f9bcd5f4e38a")
-	)
 	(text "-12V Jack"
 		(exclude_from_sim no)
 		(at 27.178 351.536 0)
@@ -17501,7 +17490,7 @@
 		(uuid "fffd8c2a-be39-4489-8418-dfbfa5677d39")
 	)
 	(image
-		(at 828.04 180.34)
+		(at 850.9 170.18)
 		(uuid "dc217f64-f3fd-4837-b7a9-bae6e9140800")
 		(data "iVBORw0KGgoAAAANSUhEUgAAA7oAAASOCAYAAADrSFBYAAAMTGlDQ1BJQ0MgUHJvZmlsZQAASImV"
 			"VwdYU8kWnltSIQQIREBK6E0QkRJASggtgPQiiEpIAoQSY0JQsaOLCq5dRLCiqyCKHRCxYVcWxe5a"

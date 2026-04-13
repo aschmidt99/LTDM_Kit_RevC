@@ -7,7 +7,8 @@
 #include <cstdint>
 #include "render.h"
 
-extern float currRMS;
+extern float currRMS0;
+extern float currRMS1;
 
 volatile bool buttonStates[16] = {};
 volatile float sliderStates[16] = {};
@@ -76,8 +77,24 @@ void readUI(){
 
 void updateLEDsFromButtons() {
   //tlc.setLED(LED_INDEX, R, G, B);
-  tlc.setLED(0, 0, 500*sliderStates[0]*buttonStates[0], 0); // CH1 - turn LED on when active
+  // CH1
+  tlc.setLED(0, 0, 500*sliderStates[0]*buttonStates[0], 0); // LED one is green, scaled by feedback gain
+
+  tlc.setLED(2, 500*!buttonStates[2]*buttonStates[0], 0, 500*context.ch[0].targetRMS*buttonStates[0]*(buttonStates[2])); // BLUE intensitiy represents target RMS - Red indicated RMS limiting is off
+
+  tlc.setLED(4, 500*context.ch[0].measuredRMS, 250*context.ch[0].measuredRMS, 0); // Current RMS indicator
+
+  tlc.setLED(6, 500*sliderStates[3]*buttonStates[6]*buttonStates[0], 500*sliderStates[3]*buttonStates[6]*(sliderStates[2])*buttonStates[0], 500*sliderStates[3]*buttonStates[6]*buttonStates[0]); // turn LED on when noise is active. Scale from white to pink
+
+  // CH2
   tlc.setLED(1, 0, 500*sliderStates[4]*buttonStates[1], 0); // CH2 - turn LED on when active
+
+  tlc.setLED(3, 500*!buttonStates[3]*buttonStates[1], 0, 500*context.ch[1].targetRMS*buttonStates[1]*(buttonStates[3])); // BLUE intensitiy represents target RMS - Red indicated RMS limiting is off
+
+  tlc.setLED(5, 500*context.ch[1].measuredRMS, 250*context.ch[1].measuredRMS, 0); // Current RMS indicator
+
+  tlc.setLED(7, 500*sliderStates[7]*buttonStates[7]*buttonStates[1], 500*sliderStates[7]*buttonStates[7]*(sliderStates[6])*buttonStates[1], 500*sliderStates[7]*buttonStates[7]*buttonStates[1]); // turn LED on when noise is active. Scale from white to pink
+  
   tlc.write();
   delay(1);
 }
@@ -122,7 +139,7 @@ void output() {
     Serial.print(context.ch[1].noiseScale);
     Serial.println();
 
-    Serial.print(currRMS);
+    Serial.print(currRMS0);
     Serial.println();
 
     updateLEDsFromButtons();

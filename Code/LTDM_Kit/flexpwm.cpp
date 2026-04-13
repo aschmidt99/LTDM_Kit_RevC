@@ -25,7 +25,7 @@ LorentzContext context = {
       .in    = 0.0f,
       .out   = 0.0f,
       // .polarity  = false,
-      .measuredRMS = 0,
+      .measuredRMS = 0.0f,
       // .outPolValue  = false,
       .lastPolValue = false,
       // .pulseWidth   = 1.0f,
@@ -47,7 +47,7 @@ LorentzContext context = {
         .in    = 0.0f,
         .out   = 0.0f,
         // .polarity  = false,
-        .measuredRMS = 0,
+        .measuredRMS = 0.0f,
         // .outPolValue  = false,
         .lastPolValue = false,
         // .pulseWidth   = 1.0f,
@@ -93,13 +93,23 @@ void flexpwm_sm1_isr() {
   context.ch[0].out = constrain(context.ch[0].out, -1.0f, 1.0f);
   context.ch[1].out = constrain(context.ch[1].out, -1.0f, 1.0f);
 
-  // Using "FLEXPWM2_SM2VAL1/2.0" is deciding that 50% duty cycle is the MAX duty cycle of an actuate pulse
+  // Using "FLEXPWM2_SM2VAL1*0.35f" is deciding that 35% duty cycle is the MAX duty cycle of an actuate pulse
+  //CH1
   if (context.ch[0].out > 0) {
     FLEXPWM2_SM2VAL3 = FLEXPWM2_SM2VAL4 + fabs(context.ch[0].out)*(FLEXPWM2_SM2VAL1*0.35f);
     FLEXPWM2_SM2VAL5 = FLEXPWM2_SM2VAL4;
   } else if (context.ch[0].out < 0) {
     FLEXPWM2_SM2VAL3 = FLEXPWM2_SM2VAL4;
     FLEXPWM2_SM2VAL5 = FLEXPWM2_SM2VAL4 + fabs(context.ch[0].out)*(FLEXPWM2_SM2VAL1*0.35f);
+  }
+
+  //CH2
+  if (context.ch[1].out > 0) {
+    FLEXPWM2_SM3VAL3 = FLEXPWM2_SM2VAL4 + fabs(context.ch[1].out)*(FLEXPWM2_SM2VAL1*0.35f);
+    FLEXPWM2_SM3VAL5 = FLEXPWM2_SM2VAL4;
+  } else if (context.ch[1].out < 0) {
+    FLEXPWM2_SM3VAL3 = FLEXPWM2_SM2VAL4;
+    FLEXPWM2_SM3VAL5 = FLEXPWM2_SM2VAL4 + fabs(context.ch[1].out)*(FLEXPWM2_SM2VAL1*0.35f);
   }
 
   // APPLY CHANGES
