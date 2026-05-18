@@ -8345,6 +8345,15 @@
 				)
 			)
 		)
+		(property "LCSC" "C861645"
+			(at 45.72 173.99 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "fa6f467e-040f-43c1-ab09-7a37d86b3bb6")
 		)
@@ -8479,6 +8488,15 @@
 			)
 		)
 		(property "Description" "Audio Jack, 3 Poles (Stereo / TRS), Switched TR Poles (Normalling)"
+			(at 373.38 83.82 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C4991610"
 			(at 373.38 83.82 0)
 			(effects
 				(font
@@ -9770,7 +9788,7 @@
 				)
 			)
 		)
-		(property "LCSC" "C860931"
+		(property "LCSC" "C309660"
 			(at 342.9 184.15 90)
 			(effects
 				(font
@@ -10115,6 +10133,15 @@
 				)
 			)
 		)
+		(property "LCSC" "C861645"
+			(at 74.93 179.07 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "55848460-d786-41ae-b4ce-0419f2095d3d")
 		)
@@ -10387,6 +10414,15 @@
 			)
 		)
 		(property "Description" "Audio Jack, 3 Poles (Stereo / TRS), Switched TR Poles (Normalling)"
+			(at 360.68 44.45 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C4991610"
 			(at 360.68 44.45 0)
 			(effects
 				(font

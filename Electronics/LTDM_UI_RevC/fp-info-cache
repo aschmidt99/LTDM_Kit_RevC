@@ -1,4 +1,4 @@
-26161345212246811
+26164902659446300
 Audio_Module
 Reverb_BTDR-1H
 Digital Reverberation Unit, http://www.belton.co.kr/inc/downfile.php?seq=17&file=pdf (footprint from http://www.uk-electronic.de/PDF/BTDR-1.pdf)
@@ -15882,6 +15882,13 @@ Through hole vertical IDC box header THT 2x15 2.54mm double row
 0
 30
 30
+Connector_IDC
+IDC-Header_2x15_P2.54mm_Vertical_SILKSCREEN
+Through hole IDC box header, 2x15, 2.54mm pitch, DIN 41651 / IEC 60603-13, double rows, https://docs.google.com/spreadsheets/d/16SsEcesNF15N3Lb4niX7dcUr-NY5_MFPQhobNuNppn4/edit#gid=0
+Through hole vertical IDC box header THT 2x15 2.54mm double row
+0
+0
+0
 Connector_IDC
 IDC-Header_2x17-1MP_P2.54mm_Latch6.5mm_Vertical
 Through hole IDC header, 2x17, 2.54mm pitch, DIN 41651 / IEC 60603-13, double rows, 6.5mm latches, mounting holes, https://docs.google.com/spreadsheets/d/16SsEcesNF15N3Lb4niX7dcUr-NY5_MFPQhobNuNppn4/edit#gid=0
@@ -92903,6 +92910,13 @@ WiFi IEEE802.11 b/g/n
 0
 44
 44
+RS45111A900F
+RS45111A900F
+RS45111A900F
+Variable Resistor
+0
+5
+5
 Relay_SMD
 Relay_2P2T_10x6mm_TE_IMxxG
 Signal Relay, 10x6mm, 2 Form C, Gull Wings, https://www.te.com/commerce/DocumentDelivery/DDEController?Action=showdoc&DocId=Data+Sheet%7F108-98001%7FZ.1%7Fpdf%7FEnglish%7FENG_DS_108-98001_Z.1.pdf

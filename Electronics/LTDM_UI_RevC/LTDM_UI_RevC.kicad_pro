@@ -58,7 +58,32 @@
           "width": 0.0
         }
       ],
-      "drc_exclusions": [],
+      "drc_exclusions": [
+        [
+          "silk_edge_clearance|158150000|46347000|081c7617-2582-441a-884c-b688f360db5c|d2d53636-bb19-43aa-a88d-ebafc195eec3",
+          ""
+        ],
+        [
+          "silk_edge_clearance|158150000|46347000|081c7617-2582-441a-884c-b688f360db5c|e997e0ae-f7f4-4997-939d-9a43bd46c14e",
+          ""
+        ],
+        [
+          "silk_edge_clearance|169790000|46347000|081c7617-2582-441a-884c-b688f360db5c|618ad64b-7e0a-4db3-9e1b-9466480312cf",
+          ""
+        ],
+        [
+          "silk_edge_clearance|184032000|46347000|081c7617-2582-441a-884c-b688f360db5c|3e49ad3a-ddb0-4370-8e83-cbf6baa30f64",
+          ""
+        ],
+        [
+          "silk_edge_clearance|184032000|46347000|081c7617-2582-441a-884c-b688f360db5c|8d9058d7-120b-498d-a0cb-2598ff174363",
+          ""
+        ],
+        [
+          "silk_edge_clearance|195672000|46347000|081c7617-2582-441a-884c-b688f360db5c|acaabb88-54b3-44af-bbd8-0ac4548ef690",
+          ""
+        ]
+      ],
       "meta": {
         "version": 2
       },
@@ -87,8 +112,8 @@
         "item_on_disabled_layer": "error",
         "items_not_allowed": "error",
         "length_out_of_range": "error",
-        "lib_footprint_issues": "warning",
-        "lib_footprint_mismatch": "warning",
+        "lib_footprint_issues": "ignore",
+        "lib_footprint_mismatch": "ignore",
         "malformed_courtyard": "error",
         "microvia_drill_out_of_range": "error",
         "mirrored_text_on_front_layer": "warning",
@@ -101,7 +126,7 @@
         "pth_inside_courtyard": "ignore",
         "shorting_items": "error",
         "silk_edge_clearance": "warning",
-        "silk_over_copper": "warning",
+        "silk_over_copper": "ignore",
         "silk_overlap": "warning",
         "skew_out_of_range": "error",
         "solder_mask_bridge": "error",

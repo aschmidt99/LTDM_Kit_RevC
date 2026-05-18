@@ -167,7 +167,7 @@ void setOutputPWM(uint16_t val) {
   // SENSE pins
   // FLEXPWM2_SM1VAL2 = 0? // SENSE adjust RISING edge (DO NOT ADJUST :)
   FLEXPWM2_SM1VAL3 = Cycles*1.5; // SENSE adjust falling edge
-  FLEXPWM2_SM0VAL3 = Cycles*1.5; // SENSE ALT adjusting falling edge
+  FLEXPWM2_SM0VAL3 = Cycles*3.0; // SENSE ALT adjusting falling edge
 
   //CH1 ACTUATE
   // P

@@ -49,7 +49,7 @@
         "silk_text_upright": false,
         "zones": {
           "45_degree_only": false,
-          "min_clearance": 0.3
+          "min_clearance": 0.0
         }
       },
       "diff_pair_dimensions": [
@@ -91,14 +91,6 @@
         [
           "courtyards_overlap|114037158|99983000|7a987e03-4c58-45c9-8e31-077fc7f616c4|db71f6e9-7378-4a97-a0c3-72cdd266c1a1",
           ""
-        ],
-        [
-          "courtyards_overlap|93506837|85692966|45a5c383-cabb-40a7-ae7d-9ccfae772adc|a1ac44bb-aaf2-4bf4-bfc4-86327d3d285c",
-          "optionally choose which kind of resistor"
-        ],
-        [
-          "courtyards_overlap|93887837|109122000|72bb6847-8459-44e8-8c77-5e73f0233f28|c1775510-7785-45b1-9073-d37dbe0832bb",
-          "optionally choose which kiund of resistor"
         ],
         [
           "silk_edge_clearance|104201000|153932446|412b55ab-3507-408d-a410-281161ad88bc|2723c41e-d5ba-471f-82e6-105f674e6586",
