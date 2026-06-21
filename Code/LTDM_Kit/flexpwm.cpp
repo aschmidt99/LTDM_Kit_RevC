@@ -65,7 +65,7 @@ LorentzContext context = {
 void flexpwm_sm1_isr() {
   //\\ SENSE STAGE //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
   FLEXPWM2_SM1STS = (1 << 12);  // Writing 1 to bit 12 clears the VAL0 interrupt flag
-
+  uint32_t start = ARM_DWT_CYCCNT;
   delayMicroseconds(3); //small amount of time for 
   // Populate context
   // NEW WAY - omits slow/sequential analogRead()
@@ -81,8 +81,8 @@ void flexpwm_sm1_isr() {
   while (!(ADC1_HS & ADC_HS_COCO0) | !(ADC2_HS & ADC_HS_COCO0)); // COCO = "conversion complete"
 
   // total input signal, normalized to range of -1.0 to 1.0
-  context.ch[0].in = ADC1_R0 / 4095.0f * float((2*digitalRead(context.ch[0].polarityPin) - 1)); // CH1
-  context.ch[1].in = ADC2_R0 / 4095.0f * float((2*digitalRead(context.ch[1].polarityPin) - 1)); // CH2
+  context.ch[0].in = ADC1_R0 * 0.0002442f * float((2*digitalRead(context.ch[0].polarityPin) - 1)); // CH1 (0.0002442 is 1/4095 to avoid a divide)
+  context.ch[1].in = ADC2_R0 * 0.0002442f * float((2*digitalRead(context.ch[1].polarityPin) - 1)); // CH2 (0.0002442 is 1/4095 to avoid a divide)
 
   //\\// RENDER //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//
   digitalWriteFast(GPIO_PIN, HIGH);
@@ -132,6 +132,7 @@ void flexpwm_sm1_isr() {
   context.pedals[1] = pedalStates[1];
 
   context.frameCount++;
+  context.isrCycleCount = ARM_DWT_CYCCNT - start;
 }
 
 void setOutputPWM(uint16_t val) {

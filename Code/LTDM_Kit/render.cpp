@@ -8,6 +8,7 @@
 // float targetRMS;
 
 const int numSamples = 200;
+float invNumSamples = 1.0f;
 float buffer0[numSamples] = {};
 float buffer1[numSamples] = {};
 float sum0 = 0.0f;
@@ -24,15 +25,17 @@ float noise1 = 0.0f;
 
 // one-time initialisation
 bool renderSetup(LorentzContext *context) {
+    invNumSamples = 1.0f / (float)numSamples;
     return true;
 }
 
 // called once per sample
 void render(LorentzContext *context) {
 
+    uint32_t start = ARM_DWT_CYCCNT;
     // only update noise pulse width every N frames - third knob now acts as a rudimentary LPF on the noise
-    if ((context->frameCount % int(12 - context->sliders[2] * 12) == 0)) {noise0 = random(-1024, 1024)/1024.0f;}
-    if ((context->frameCount % int(12 - context->sliders[6] * 12) == 0)) {noise1 = random(-1024, 1024)/1024.0f;}
+    if ((context->frameCount % int(12 - context->sliders[2] * 12) == 0)) {noise0 = random(-1024, 1024)*0.00097656f;} //0.00097656 is 1/1024 (to avoid the divide)
+    if ((context->frameCount % int(12 - context->sliders[6] * 12) == 0)) {noise1 = random(-1024, 1024)*0.00097656f;} //0.00097656 is 1/1024 (to avoid the divide)
 
     // CH1 RMS calculation
     sum0 -= buffer0[sampleIndex] * buffer0[sampleIndex];
@@ -46,10 +49,10 @@ void render(LorentzContext *context) {
 
     sampleIndex = (sampleIndex + 1) % numSamples;
 
-    currRMS0 = sqrt((float)sum0 / (float)numSamples);
+    currRMS0 = sqrt((float)sum0 * invNumSamples);
     context->ch[0].measuredRMS = currRMS0;
 
-    currRMS1 = sqrt((float)sum1 / (float)numSamples);
+    currRMS1 = sqrt((float)sum1 * invNumSamples);
     context->ch[1].measuredRMS = currRMS1;
     
     // Enable channel 1 with leftmost latching button (channel enable pin must be high)
@@ -86,4 +89,5 @@ void render(LorentzContext *context) {
     // apply input + noise to output
     context->ch[1].out = context->ch[1].in * fbFactor1 + noiseFactor1 * float(context->buttons[7]);
     // context->audioOut[1] = fabs(context->audioIn[1] * context->sliders[4] * 4.0f * (2.0f * float(context->polarity[1]) - 1.0f));
+    context->renderCycleCount = ARM_DWT_CYCCNT - start;
 }

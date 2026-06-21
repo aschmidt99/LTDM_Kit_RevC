@@ -13,7 +13,8 @@ struct LorentzContext {
     bool  buttons[16];       // all button states
     float sliders[16];       // all slider/pot values, normalised 0.0-1.0
     float pedals[2];     // both expression pedal values
-
+    uint32_t isrCycleCount;
+    uint32_t renderCycleCount;
     unsigned long long frameCount; // total samples elapsed, useful for LFOs etc.
 };
 

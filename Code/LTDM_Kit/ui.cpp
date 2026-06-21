@@ -21,6 +21,8 @@ uint8_t currentInput = 0;
 bool UI_ReadPhase = false;
 uint32_t lastPrint = 0;
 
+float invNumCyclesPerSample = 1.0f;
+
 extern Adafruit_TLC5947 tlc = Adafruit_TLC5947(1, tlc_clock, tlc_data, tlc_latch);
 
 void initUI() {
@@ -114,6 +116,8 @@ void updateServo(){
 void output() {
   // put your main code here, to run repeatedly:
   if (millis() - lastPrint > 100) {
+
+    invNumCyclesPerSample = (float)SAMPLERATE / (float)F_BUS_ACTUAL;
     lastPrint = millis();
     for (int i = 0; i < 16; i++){
       Serial.print(buttonStates[i]);
@@ -153,6 +157,27 @@ void output() {
     Serial.print(currRMS0);
     Serial.println();
 
+    Serial.print(" Render cycle Count: ");
+    Serial.print(" ");
+      Serial.print(context.renderCycleCount);
+    Serial.println();
+
+    Serial.print("Render cpu load: ");
+    Serial.print(" ");
+    Serial.print(context.renderCycleCount * invNumCyclesPerSample);
+    Serial.println();
+    updateLEDsFromButtons();
+    updateServo();
+
+        Serial.print(" ISR cycle Count: ");
+    Serial.print(" ");
+      Serial.print(context.isrCycleCount);
+    Serial.println();
+
+    Serial.print(" ISR cpu load: ");
+    Serial.print(" ");
+    Serial.print(context.isrCycleCount * invNumCyclesPerSample);
+    Serial.println();
     updateLEDsFromButtons();
     updateServo();
   }
