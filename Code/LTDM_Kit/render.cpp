@@ -32,8 +32,9 @@ bool renderSetup(LorentzContext *context) {
 // called once per sample
 void render(LorentzContext *context) {
 
-    uint32_t start = ARM_DWT_CYCCNT;
-    // only update noise pulse width every N frames - third knob now acts as a rudimentary LPF on the noise
+    uint32_t start = ARM_DWT_CYCCNT; // for debugging purposes - reporting cylce time
+
+    // only update noise pulse width every N frames - the third knob now acts as a rudimentary LPF on the noise
     if ((context->frameCount % max(1, int(12 - context->sliders[2] * 12)) == 0)) {noise0 = random(-1024, 1024)*0.00097656f;} //0.00097656 is 1/1024 (to avoid the divide)
     if ((context->frameCount % max(1, int(12 - context->sliders[6] * 12)) == 0)) {noise1 = random(-1024, 1024)*0.00097656f;} //0.00097656 is 1/1024 (to avoid the divide)
 
@@ -47,17 +48,17 @@ void render(LorentzContext *context) {
     buffer1[sampleIndex] = fabs(context->ch[1].in);
     sum1 += fabs(context->ch[1].in) * fabs(context->ch[1].in);
 
-    sampleIndex = (sampleIndex + 1) % numSamples;
+    sampleIndex = (sampleIndex + 1) % numSamples; // increment sample index for RMS buffer
 
-    currRMS0 = sqrt((float)sum0 * invNumSamples);
-    context->ch[0].measuredRMS = currRMS0;
+    currRMS0 = sqrt((float)sum0 * invNumSamples); // calculate current RMS
+    context->ch[0].measuredRMS = currRMS0;        // store current RMS
 
-    currRMS1 = sqrt((float)sum1 * invNumSamples);
-    context->ch[1].measuredRMS = currRMS1;
+    currRMS1 = sqrt((float)sum1 * invNumSamples); // calculate current RMS
+    context->ch[1].measuredRMS = currRMS1;        // store current RMS
     
-    // Enable channel 1 with leftmost latching button (channel enable pin must be high)
+    // Enable channel 1 with leftmost latching button (channel enable pin must be high to allow output.
     digitalWrite(context->ch[0].enablePin, context->buttons[0]);
-    // Enable channel 2 with leftmost latching button (channel enable pin must be high)
+    // Enable channel 2 with leftmost latching button (channel enable pin must be high to allow output.
     digitalWrite(context->ch[1].enablePin, context->buttons[1]);
 
     // Ch1 gain and noise stuff
@@ -68,7 +69,13 @@ void render(LorentzContext *context) {
     context->ch[0].targetRMS = targetRMS0;
     // float targetRMS = context->pedals[0];
 
+
+    // the amount of noise is scaled back as the channel's RMS value increases
+    // basically, noise is for initiating vibration - once the string is moving, scale back the noise
     float noiseFactor0 = (noise0 * constrain((context->ch[0].noiseScale - currRMS0), 0.0f, 1.0f) * targetRMS0);
+    // similarly, the amount of feedback gain is scaled based on the measured RMS and and the target RMS
+    // If the string's measured RMS is < the target, scale up gain. If measured RMS is > target RMS, scale down gain.
+    // (... actually, when the measured RMS is > target gain, then the feedback gain becomes negative and actively damps string movement)
     float fbFactor0 =  context->ch[0].fbGain * ((3.0f * (targetRMS0 - currRMS0)*float(context->buttons[2])) +  1.0*!(context->buttons[2]));
 
     // apply input + noise to output
@@ -79,7 +86,7 @@ void render(LorentzContext *context) {
     context->ch[1].fbGain = context->sliders[4];            // feedback gain controlled by knob 0
     context->ch[1].noiseScale = context->sliders[7];
 		// context->ch[0].noiseScale = context->pedals[1];
-    float targetRMS1 = context->sliders[5];         // the targetRMS
+    float targetRMS1 = context->sliders[5];                 // set the targetRMS with 
     context->ch[1].targetRMS = targetRMS1;
     // float targetRMS = context->pedals[0];
 
