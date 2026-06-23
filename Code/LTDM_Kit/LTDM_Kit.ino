@@ -25,6 +25,7 @@ To do:
 #include "harmonics.h"
 #include "context.h"
 #include "render.h"
+#include "serialctrl.h"
 
 void setup() {
   delay(2000);
@@ -41,5 +42,6 @@ void setup() {
 }
 
 void loop() {
+  pollSerialControl();
   output();
 }

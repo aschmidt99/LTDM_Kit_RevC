@@ -34,8 +34,8 @@ void render(LorentzContext *context) {
 
     uint32_t start = ARM_DWT_CYCCNT;
     // only update noise pulse width every N frames - third knob now acts as a rudimentary LPF on the noise
-    if ((context->frameCount % int(12 - context->sliders[2] * 12) == 0)) {noise0 = random(-1024, 1024)*0.00097656f;} //0.00097656 is 1/1024 (to avoid the divide)
-    if ((context->frameCount % int(12 - context->sliders[6] * 12) == 0)) {noise1 = random(-1024, 1024)*0.00097656f;} //0.00097656 is 1/1024 (to avoid the divide)
+    if ((context->frameCount % max(1, int(12 - context->sliders[2] * 12)) == 0)) {noise0 = random(-1024, 1024)*0.00097656f;} //0.00097656 is 1/1024 (to avoid the divide)
+    if ((context->frameCount % max(1, int(12 - context->sliders[6] * 12)) == 0)) {noise1 = random(-1024, 1024)*0.00097656f;} //0.00097656 is 1/1024 (to avoid the divide)
 
     // CH1 RMS calculation
     sum0 -= buffer0[sampleIndex] * buffer0[sampleIndex];
