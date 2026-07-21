@@ -1,6 +1,9 @@
 /* This code creates precisely timed pulses for sustaining vibrations of a resonant system, like Figure 2 of Paul Vo's Patent: [https://patents.google.com/patent/EP1218716B1](https://patents.google.com/patent/EP1218716B1)
 
 For Teensy 4.1 with RevB or RevC PCB plugged into the UI PCB OR controlled over serial
+
+ToDo: Reinstate harmonics.cpp/h, mapped to the sliders
+
 */
 
 #include "imxrt.h"

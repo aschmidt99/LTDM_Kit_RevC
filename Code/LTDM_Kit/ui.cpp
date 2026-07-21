@@ -7,6 +7,7 @@
 #include "servo.h"
 #include <cstdint>
 #include "render.h"
+#include "serialctrl.h"
 
 Servo servo;
 
@@ -74,10 +75,12 @@ void readUI(){
     digitalWrite(AS3, (currentInput >> 3) & 0x01);
     UI_ReadPhase = 1;
   } else {
-    buttonStates[currentInput] = (digitalRead(DSIN) == LOW);
-    sliderStates[sliderRemap[currentInput]] = float(analogRead(ASIN)/4096.);
-    if (currentInput == 0) {pedalStates[0] = float(analogRead(FP0)/4096.);}
-    else if (currentInput == 1) {pedalStates[1] = float(analogRead(FP1)/4096.);}
+    if (!serialOverride) {
+      buttonStates[currentInput] = (digitalRead(DSIN) == LOW);
+      sliderStates[sliderRemap[currentInput]] = float(analogRead(ASIN)/4096.);
+      if (currentInput == 0) {pedalStates[0] = float(analogRead(FP0)/4096.);}
+      else if (currentInput == 1) {pedalStates[1] = float(analogRead(FP1)/4096.);}
+    }
     // Move to next button
     currentInput = (currentInput + 1) & 0x0F;
     UI_ReadPhase = 0;
