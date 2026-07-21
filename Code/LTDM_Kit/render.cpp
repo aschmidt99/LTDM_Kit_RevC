@@ -1,6 +1,7 @@
 // render.cpp
 #include "render.h"
 #include "Arduino.h"
+#include "harmonics.h"
 
 // float fbGain;
 // float adcScale;
@@ -33,6 +34,19 @@ bool renderSetup(LorentzContext *context) {
 void render(LorentzContext *context) {
 
     uint32_t start = ARM_DWT_CYCCNT; // for debugging purposes - reporting cylce time
+
+    //  --- FOR HARMONIC SYNTHESIS
+    // Faders set the gain of harmonics 1-8
+    for (int n = 0; n < NUM_HARMONICS; n++) {
+      harmGain[n] = context->sliders[8 + n];
+    }
+
+    //Track each channel's fundamental frequency from zero-crossing
+    // Then synthesize harmonics based on faders
+    updateHarmonicPitch(0, context->ch[0].in >= 0.0f);
+    float harmonics0 = renderHarmonics(0);
+
+    // --- END HARMONIC SYNTHESIS
 
     // only update noise pulse width every N frames - the third knob now acts as a rudimentary LPF on the noise
     if ((context->frameCount % max(1, int(12 - context->sliders[2] * 12)) == 0)) {noise0 = random(-1024, 1024)*0.00097656f;} //0.00097656 is 1/1024 (to avoid the divide)
@@ -78,8 +92,8 @@ void render(LorentzContext *context) {
     // (... actually, when the measured RMS is > target gain, then the feedback gain becomes negative and actively damps string movement)
     float fbFactor0 =  context->ch[0].fbGain * ((3.0f * (targetRMS0 - currRMS0)*float(context->buttons[2])) +  1.0*!(context->buttons[2]));
 
-    // apply input + noise to output
-    context->ch[0].out = context->ch[0].in * fbFactor0 + noiseFactor0 * float(context->buttons[6]);
+    // apply input + noise + harmonics to output
+    context->ch[0].out = context->ch[0].in * fbFactor0 + noiseFactor0 * float(context->buttons[6]) + harmonics0;;
     // context->audioOut[1] = fabs(context->audioIn[1] * context->sliders[4] * 4.0f * (2.0f * float(context->polarity[1]) - 1.0f));
 
     // Ch2 gain and noise stuff
