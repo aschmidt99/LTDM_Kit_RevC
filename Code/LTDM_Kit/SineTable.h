@@ -1,3 +1,5 @@
+// sineTable.h
+
 // creates a sinewave lookup table for fast harmonic synthesis
 
 #ifndef SINETABLE_H

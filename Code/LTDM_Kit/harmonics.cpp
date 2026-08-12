@@ -1,9 +1,10 @@
+// harmonics.cpp
 #include "harmonics.h"
 #include "system_config.h"
 #include "SineTable.h"
 #include <Arduino.h>
 
-float alpha = 0.4f; //smoothing factor for fundamental frequency estimate
+float alpha = 0.99f; //smoothing factor for fundamental frequency estimate
 
 float avgFrequency[NUM_CHANNELS] = {0.0f, 0.0f};
 

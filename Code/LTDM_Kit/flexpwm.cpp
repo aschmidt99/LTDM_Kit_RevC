@@ -103,13 +103,13 @@ void flexpwm_sm1_isr() {
     FLEXPWM2_SM2VAL5 = FLEXPWM2_SM2VAL4 + fabs(context.ch[0].out)*(FLEXPWM2_SM2VAL1*0.35f);
   }
 
-  //CH2
+  //CH2 -- LED only, so no longer capable of negative pulse 
   if (context.ch[1].out > 0) {
-    FLEXPWM2_SM3VAL3 = FLEXPWM2_SM2VAL4 + fabs(context.ch[1].out)*(FLEXPWM2_SM2VAL1*0.35f);
+    FLEXPWM2_SM3VAL3 = FLEXPWM2_SM2VAL4 + fabs(context.ch[1].out)*(FLEXPWM2_SM2VAL1*1.0f);
     FLEXPWM2_SM3VAL5 = FLEXPWM2_SM2VAL4;
-  } else if (context.ch[1].out < 0) {
+  } else if (context.ch[1].out <= 0) {
     FLEXPWM2_SM3VAL3 = FLEXPWM2_SM2VAL4;
-    FLEXPWM2_SM3VAL5 = FLEXPWM2_SM2VAL4 + fabs(context.ch[1].out)*(FLEXPWM2_SM2VAL1*0.35f);
+    FLEXPWM2_SM3VAL5 = FLEXPWM2_SM2VAL4;
   }
 
   // APPLY CHANGES

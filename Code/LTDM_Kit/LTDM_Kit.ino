@@ -24,7 +24,7 @@ For Teensy 4.1 with RevB or RevC PCB plugged into the UI PCB OR controlled over 
 
 void setup() {
   delay(2000);
-  Serial.begin(115200);
+  Serial.begin(2000000);
   analogReadResolution(12);  // default should be 12
   analogReadAveraging(0);     // Disable averaging (set to 0) for faster reading... 3 seems to be fine, but 4 is far too much
   initUI();           // initialize the UI (delcare pins f)

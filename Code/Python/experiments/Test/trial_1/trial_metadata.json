@@ -1,0 +1,23 @@
+{
+  "trial_number": 1,
+  "capture_time": "20260811_225348",
+  "experiment_title": "Test",
+  "description": "Just testing out the new code",
+  "operator": "adamschmidt",
+  "hdf5_path": "experiments/Test/trial_1/rigol_capture.h5",
+  "screen_png": "experiments/Test/trial_1/rigol_screen.png",
+  "string_material": "brass",
+  "speaking_length_cm": "68",
+  "string_gauge_mm": "0.6",
+  "string_resistance_ohm": "0.2",
+  "string_fundamental_hz": "112.5",
+  "magnet_grade": "N35",
+  "magnet_position_cm": "250",
+  "magnet_distance_mm": "2.5",
+  "magnet_dimensions_mm": "20x10x5",
+  "magnets_in_stack": "3",
+  "channel_label_CHAN1": "Actuation Preview",
+  "channel_label_CHAN2": "Voltage (after gain stage 1)",
+  "channel_label_CHAN3": "S&H",
+  "channel_label_CHAN4": "Current"
+}

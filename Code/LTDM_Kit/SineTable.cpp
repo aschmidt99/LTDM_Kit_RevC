@@ -1,3 +1,4 @@
+// sineTable.cpp
 // creates a sinewave lookup table for fast harmonic synthesis
 
 #include "SineTable.h"

@@ -1,3 +1,4 @@
+// pinmap.h
 #ifndef PINMAP_H
 #define PINMAP_H
 

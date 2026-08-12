@@ -1,5 +1,4 @@
-// debug on or off basically
-
+// debug.h
 #ifndef DEBUG_H
 #define DEBUG_H
 
