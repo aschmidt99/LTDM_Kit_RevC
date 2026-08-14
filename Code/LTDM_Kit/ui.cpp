@@ -5,13 +5,10 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include "Adafruit_TLC5947.h"
-#include "Servo.h"
 #include <cstdint>
 #include "render.h"
 #include "serialctrl.h"
 #include "capture_stream.h"
-
-Servo servo;
 
 extern float currRMS0;
 extern float currRMS1;
@@ -57,9 +54,9 @@ void initUI() {
   tlc.begin();
 }
 
-void initServo(){
-  servo.attach(SERVO_PIN);
-}
+// void initServo(){
+//   servo.attach(SERVO_PIN);
+// }
 
 // Remap table: reorders where each pot value is stored (since the default hardware inputs was wack)
 const uint8_t sliderRemap[16] = {7, 6, 5, 4, 0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15};
@@ -113,16 +110,16 @@ void updateLEDsFromButtons() {
   delay(1);
 }
 
-void updateServo(){
-  servo.write(sliderStates[8]*180*buttonStates[8]);
-}
+// void updateServo(){
+//   servo.write(sliderStates[8]*180*buttonStates[8]);
+// }
 
 // this is naughty ... I have tied together serial printing and updating the buttons
 void output() {
   // put your main code here, to run repeatedly:
   if (captureStreamIsArmed() || captureStreamIsActive()) {
     updateLEDsFromButtons();
-    updateServo();
+    // updateServo();
     return;
   }
 
@@ -178,7 +175,7 @@ void output() {
     Serial.print(context.renderCycleCount * invNumCyclesPerSample);
     Serial.println();
     updateLEDsFromButtons();
-    updateServo();
+    // updateServo();
 
         Serial.print(" ISR cycle Count: ");
     Serial.print(" ");
@@ -190,6 +187,6 @@ void output() {
     Serial.print(context.isrCycleCount * invNumCyclesPerSample);
     Serial.println();
     updateLEDsFromButtons();
-    updateServo();
+    // updateServo();
   }
 }

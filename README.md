@@ -2,8 +2,6 @@
 
 Firmware and hardware assets for a Teensy 4.1 based LTDM (Lorentz Time-Domain Multiplex) kit.
 
-![VisualGuide](VisualGuide.jpg)
-
 ### Programming
 Iterate quickly on dsp and string behavior in `Code/LTDM_Kit/render.cpp`, leaving precise timing of sensing and actuating untouched by user.
 ### Interaction
@@ -25,10 +23,49 @@ Firmware can be edited and uploaded to the teensy 4.1 via the Arduino 2.X IDE or
 ### Arduino IDE
 To use the Arduino IDE, you will need to [(install the Arduino IDE)](https://support.arduino.cc/hc/en-us/articles/360019833020-Download-and-install-Arduino-IDE). Once installed, download the Teensy Board library by following the instructions [(here)](https://www.pjrc.com/teensy/td_download.html).
 
-### VS Code tasks (recommended)
-To update the code via the terminal in VS code, you can use ```arduino-cli```.
+After firmware changes are made, make sure the teensy is connected and seen by the dropdown menu in the upper left of the IDE. Use the 'upload' button next to this to flash new firmware.
 
-Use `Cmd+Shift+P` -> `Tasks: Run Task` and select:
+### Arduino CLI (direct)
+If this is your first time connecting from a new machine, run this one-time setup first:
+
+1. Install Arduino CLI.
+2. Add the Teensy board index URL.
+3. Update board indexes and install the Teensy core.
+4. Plug in Teensy 4.1 with a data-capable USB cable.
+5. Verify the detected USB port before upload.
+
+Example one-time setup commands:
+
+```bash
+# Add PJRC Teensy package index (safe to run again if already present)
+arduino-cli config add board_manager.additional_urls https://www.pjrc.com/teensy/package_teensy_index.json
+
+# Refresh indexes and install Teensy core
+arduino-cli core update-index
+arduino-cli core install teensy:avr
+
+# Confirm Teensy core is installed
+arduino-cli core list
+```
+
+Check that your Teensy is visible and note its port:
+
+```bash
+arduino-cli board list
+```
+
+On macOS, Teensy ports commonly look like `/dev/cu.usbmodem*`.
+
+To flash code directly from terminal:
+
+```bash
+cd Code/LTDM_Kit
+arduino-cli compile --fqbn teensy:avr:teensy41 .
+arduino-cli upload --fqbn teensy:avr:teensy41 -p /dev/cu.usbmodemXXXX .
+```
+
+### VS Code tasks
+To flash firmware from VS code, you can use the premade VS code tasks by using `Cmd+Shift+P` -> `Tasks: Run Task` and select:
 
 - `Teensy: Compile LTDM_Kit`
 - `Teensy: Upload LTDM_Kit (prompt port)`
@@ -37,24 +74,29 @@ Use `Cmd+Shift+P` -> `Tasks: Run Task` and select:
 
 Task definitions live in `.vscode/tasks.json`.
 
-### Arduino CLI (direct)
-
-```bash
-cd Code/LTDM_Kit
-arduino-cli compile --fqbn teensy:avr:teensy41 .
-arduino-cli upload --fqbn teensy:avr:teensy41 -p /dev/cu.usbmodemXXXX .
-```
-
 ## How the Firmware is Organized
 
-- `LTDM_Kit.ino`: startup and top-level loop
-- `flexpwm.*`: timing and ISR plumbing
-- `render.cpp`: per-sample DSP/control law (primary customization file)
-- `ui.cpp`: button/slider/pedal scan, LED feedback, serial text output
-- `serialctrl.cpp`: optional serial override of UI controls
-- `capture_stream.*`: deterministic capture trigger/stream output for measurement scripts
-- `pinmap.h`: central pin assignments
-- `context.h`: shared frame context passed to render code
+### Essential core files (base firmware)
+
+- `LTDM_Kit.ino`: startup order and top-level loop (`setup()` and `loop()`).
+- `flexpwm.cpp` / `flexpwm.h`: hardware timing, ISR, ADC reads, and PWM update path.
+- `render.cpp` / `render.h`: per-sample behavior, where algorithm/control logic is authored.
+- `ui.cpp` / `ui.h`: physical control scan (buttons/sliders/pedals), LED updates, and serial telemetry printout.
+- `channel.h`: per-channel runtime/state struct fields used by ISR and render.
+- `context.h`: shared frame context passed into `render()` each sample.
+- `pinmap.h`: board pin assignments and hardware routing constants.
+- `system_config.h`: global compile-time configuration (sample rate, buffer sizes, PWM resolution).
+
+### Optional or bonus helper modules
+
+These are useful, but not strictly required for a minimal "sense -> render -> actuate" base path.
+
+- `serialctrl.cpp` / `serialctrl.h`: optional host serial override of hardware UI state (used by Max patch control).
+- `capture_stream.cpp` / `capture_stream.h`: optional deterministic capture trigger and streaming for measurement scripts.
+- `harmonics.cpp` / `harmonics.h`: additive harmonic oscillator bank and zero-crossing pitch tracking.
+- `visualAlias.cpp` / `visualAlias.h`: optional visual phase alias output behavior by plugging a 12V LED strip into one of the channels.
+- `SineTable.cpp` / `SineTable.h`: lookup-table sine source used by harmonic/visual helper DSP.
+- `debug.h`: compile-time debug print macros (`DEBUG_PRINT`, `DEBUG_PRINTLN`).
 
 At runtime, the flow is:
 
@@ -62,7 +104,7 @@ At runtime, the flow is:
 2. `render(context)` computes output values once per sample.
 3. PWM/sense outputs are driven from those computed values.
 
-## Theory and Philosophy
+## Codebase division-of-labor
 
 This codebase intentionally separates three concerns:
 
@@ -70,7 +112,7 @@ This codebase intentionally separates three concerns:
 2. Control surface: what knobs/buttons/pedals currently mean.
 3. Algorithm: how measured input becomes actuation output.
 
-The design goal is to let you innovate on behavior without destabilizing timing-critical plumbing.
+The design goal is to let you iterate and develop actuation and feedback behavior without destabilizing anything with critical timing, such as the regular periodic sense + actuate loop.
 
 In practice, treat `render.cpp` as your sandbox for algorithmic ideas:
 
@@ -79,14 +121,6 @@ In practice, treat `render.cpp` as your sandbox for algorithmic ideas:
 - RMS/energy targeting
 - Harmonic synthesis
 - Cross-channel coupling experiments
-
-Keep UI semantics explicit and stable:
-
-- Decide which control maps to which concept.
-- Keep that mapping documented in comments and README.
-- Avoid hiding control meaning across many files.
-
-This gives you repeatable experiments: you can compare algorithm changes while holding hardware and timing constant.
 
 ## Where to Make Changes
 
@@ -101,16 +135,10 @@ Key entry points:
 
 Useful signals available from `context`:
 
-- `context->ch[0].in`, `context->ch[1].in`
-- `context->buttons[0..15]`
-- `context->sliders[0..15]`
-- `context->pedals[0..1]`
-
-Typical edits:
-
-- Change how target RMS, noise, and feedback gain combine.
-- Add/remove dynamic limiting behavior.
-- Adjust harmonic bank use and scaling.
+- `context->ch[0].in`, `context->ch[1].in` (channel's sensed audio input)
+- `context->buttons[0]` (button 0-7 are the latching buttons, and 6-15 are the momentary push buttons)
+- `context->sliders[0..15]` (slider 0-7 are the potentiometers, 8-15 are the sliders)
+- `context->pedals[0..1]` (optionally connect up to 2 expression pedals)
 
 ### Button/slider behavior mapping
 
@@ -118,37 +146,20 @@ Edit `Code/LTDM_Kit/ui.cpp` and `Code/LTDM_Kit/render.cpp` together.
 
 How it works:
 
-1. `ui.cpp` scans physical mux inputs.
-2. `sliderRemap` in `ui.cpp` maps physical control order to logical slider indices.
-3. `render.cpp` assigns meaning to those logical indices.
-
-If a slider or button feels "wrong", check `sliderRemap` first, then the index usage in `render.cpp`.
+1. `ui.cpp` scans physical mux inputs and sets UI LED outputs.
+2. `render.cpp` assigns meaning to those logical indices.
 
 ### Pin assignments
 
-Edit `Code/LTDM_Kit/pinmap.h` only.
-
-## Current Implementation (This Revision)
-
-This is what the current firmware does by default.
-
-### Top-level startup
-
-In `Code/LTDM_Kit/LTDM_Kit.ino` setup currently initializes:
-
-- UI scan + LEDs
-- Servo attach
-- FlexPWM and interrupts
-- render setup
-- sine table
-- capture stream hooks
+Edit `Code/LTDM_Kit/pinmap.h` only if attaching additional functions to the available GPIOs.
 
 ### Render/control behavior (channel 1 focused)
 
+![VisualGuide](VisualGuide.jpg)
+
 In `Code/LTDM_Kit/render.cpp`:
 
-- Button 0 enables channel 1 output (`enablePin` high/low).
-- Button 1 enables channel 2 output.
+- Button 0/1 enables channel 1 and 2 output respectively (`enablePin` high/low).
 - Button 2 toggles RMS-targeted gain behavior for CH1.
 - Button 6 gates CH1 noise injection.
 - Button 8 requests capture start while capture is armed.
@@ -160,7 +171,7 @@ In `Code/LTDM_Kit/render.cpp`:
 - Slider 4: harmonic frequency smoothing parameter (`alpha`).
 - Sliders 8..15: gains for harmonics 1..8 (`NUM_HARMONICS = 8`).
 
-- Channel 2 currently carries visual-alias pulse output behavior (`renderLEDPulse(...)`) rather than the older noise/feedback block (that block remains commented out).
+- Note: Channel 2 currently carries visual-alias pulse output behavior (`renderLEDPulse(...)`) rather than string feedback behavior
 
 ### LED/UI feedback
 
@@ -168,16 +179,7 @@ In `Code/LTDM_Kit/ui.cpp`:
 
 - TLC5947 LEDs reflect enable/limit/target and measured RMS states.
 - UI scan runs in two-phase mux read/write cycles.
-- `output()` also prints debug telemetry over serial every ~100 ms when capture stream is idle.
-
-### Servo status
-
-Servo control is still active in this revision:
-
-- Servo is attached in `initServo()`.
-- Servo angle is driven in `updateServo()` from slider/button state.
-
-If servo hardware is removed, remove servo include/object/init/update calls to simplify firmware and build dependencies.
+- `output()` also prints debug telemetry over serial every ~100 ms (as long as the the python audio capture stream is idle.)
 
 ### Serial override mode
 
@@ -188,8 +190,3 @@ If servo hardware is removed, remove servo include/object/init/update calls to s
 - Payload: mode + 16 sliders + 16 buttons + 2 pedals (34 bytes)
 
 When override is active, incoming values are written directly into the shared UI state arrays.
-
-## Notes for Future Cleanup
-
-- `Code/LTDM_Kit/ui.h` currently declares `updateSevo()` (typo) while implementation is `updateServo()`.
-- Servo support is still compiled in; consider a feature flag or full removal if no longer needed.

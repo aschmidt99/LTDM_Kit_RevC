@@ -10,7 +10,6 @@ For Teensy 4.1 with RevB or RevC PCB plugged into the UI PCB OR controlled over 
 #include <SPI.h>
 #include "SineTable.h"
 #include "Adafruit_TLC5947.h"
-#include "Servo.h"
 
 #include "pinmap.h"
 #include "debug.h"
@@ -29,7 +28,6 @@ void setup() {
   analogReadResolution(12);  // default should be 12
   analogReadAveraging(0);    // Disable averaging (set to 0) for faster reading... 3 seems to be fine, but 4 is far too much
   initUI();                  // initialize the UI (declare pins etc.)
-  initServo();               // initialize servo
   initFlexPWM();             // initialize FlexPWM
   pinMode(GPIO_PIN, OUTPUT); // set GPIO_PIN as output
   renderSetup(&context);     // setup rendering context
