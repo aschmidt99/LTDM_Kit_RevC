@@ -1,0 +1,106 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Teensy: Compile LTDM_Kit",
+      "type": "shell",
+      "command": "arduino-cli",
+      "args": [
+        "compile",
+        "--fqbn",
+        "teensy:avr:teensy41",
+        "${workspaceFolder}/Code/LTDM_Kit"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Teensy: Upload LTDM_Kit (prompt port)",
+      "type": "shell",
+      "command": "arduino-cli",
+      "args": [
+        "upload",
+        "--fqbn",
+        "teensy:avr:teensy41",
+        "-p",
+        "${input:teensyPort}",
+        "${workspaceFolder}/Code/LTDM_Kit"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Teensy: Upload LTDM_Kit (auto port)",
+      "type": "shell",
+      "command": "zsh",
+      "args": [
+        "-lc",
+        "PORT=$(arduino-cli board list | grep 'teensy:avr:teensy41' | grep -Eo '/dev/cu\\.[^[:space:]]+' | head -n 1); if [ -z \"$PORT\" ]; then PORT=$(ls /dev/cu.usbmodem* 2>/dev/null | head -n 1); fi; if [ -z \"$PORT\" ]; then echo 'No Teensy serial port found.'; exit 1; fi; echo \"Using port: $PORT\"; arduino-cli upload --fqbn teensy:avr:teensy41 -p \"$PORT\" \"${workspaceFolder}/Code/LTDM_Kit\""
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Teensy: Compile + Upload LTDM_Kit (auto port)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Teensy: Compile LTDM_Kit",
+        "Teensy: Upload LTDM_Kit (prompt port)"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Python: Capture Teensy Stream",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "capture_teensy_stream.py",
+        "--port",
+        "/dev/cu.usbmodem199934501",
+        "--save-wav"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/Code/Python"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Python: Capture Teensy -> Audacity",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "capture_teensy_to_audacity.py",
+        "--port",
+        "/dev/cu.usbmodem199934501"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/Code/Python"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Python: Capture Teensy+Interface (prompt trial/duration)",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "run_capture_trial_prompt.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/Code/Python"
+      },
+      "group": "test",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "teensyPort",
+      "type": "promptString",
+      "description": "Teensy serial port",
+      "default": "/dev/cu.usbmodem199934501"
+    }
+  ]
+}

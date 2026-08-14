@@ -7,6 +7,7 @@
 #include "ui.h"
 #include "render.h"
 #include "context.h"
+#include "capture_stream.h"
 
 // int noise = 0; // same noise variable for both channels
 
@@ -83,7 +84,7 @@ void flexpwm_sm1_isr() {
   // total input signal, normalized to range of -1.0 to 1.0
   context.ch[0].in = ADC1_R0 * 0.0002442f * float((2*digitalRead(context.ch[0].polarityPin) - 1)); // CH1 (0.0002442 is 1/4095 to avoid a divide)
   context.ch[1].in = ADC2_R0 * 0.0002442f * float((2*digitalRead(context.ch[1].polarityPin) - 1)); // CH2 (0.0002442 is 1/4095 to avoid a divide)
-
+  captureStreamISR(context.ch[0].in, context.ch[1].in);
   //\\// RENDER //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//
   digitalWriteFast(GPIO_PIN, HIGH);
   render(&context);

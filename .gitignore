@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Python cache/build artifacts
+**/__pycache__/
+**/*.pyc
+
+# Audacity local project artifacts in Code/Python
+Code/Python/Python2Audacity.aup3
+Code/Python/Python2Audacity.aup3-shm
+Code/Python/Python2Audacity.aup3-wal
+Code/Python/audacity_recordings/
+
+# Generated LTDM/Rigol experiment capture data
+# Keep code and docs; ignore heavy trial outputs only.
+Code/Python/experiments/**/trial_*/
+
+# Optional runtime state that changes every run
+Code/Python/experiments/**/audacity_timeline_state.json

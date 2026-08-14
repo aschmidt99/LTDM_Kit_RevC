@@ -9,6 +9,7 @@
 #include <cstdint>
 #include "render.h"
 #include "serialctrl.h"
+#include "capture_stream.h"
 
 Servo servo;
 
@@ -119,6 +120,12 @@ void updateServo(){
 // this is naughty ... I have tied together serial printing and updating the buttons
 void output() {
   // put your main code here, to run repeatedly:
+  if (captureStreamIsArmed() || captureStreamIsActive()) {
+    updateLEDsFromButtons();
+    updateServo();
+    return;
+  }
+
   if (millis() - lastPrint > 100) {
 
     invNumCyclesPerSample = (float)SAMPLERATE / (float)F_BUS_ACTUAL;

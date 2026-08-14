@@ -3,6 +3,7 @@
 #include "Arduino.h"
 #include "harmonics.h"
 #include "visualAlias.h"
+#include "capture_stream.h"
 
 // float fbGain;
 // float adcScale;
@@ -35,6 +36,11 @@ bool renderSetup(LorentzContext *context) {
 void render(LorentzContext *context) {
 
     uint32_t start = ARM_DWT_CYCCNT; // for debugging purposes - reporting cylce time
+    // While armed, treat button 8 as a level-trigger so a slightly early or held
+    // press still starts capture once the armed state is visible here.
+    if (captureStreamIsArmed() && context->buttons[8]) {
+      captureStreamRequestStart();
+    }
 
     //  --- FOR HARMONIC SYNTHESIS
     // adjust averaging constant
