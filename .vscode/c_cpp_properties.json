@@ -1,0 +1,45 @@
+{
+    "version": 4,
+    "configurations": [
+        {
+            "name": "Teensy 4.1 (Arduino CLI)",
+            "compilerPath": "/Users/adamschmidt/Library/Arduino15/packages/teensy/tools/teensy-compile/15.2.1/arm/bin/arm-none-eabi-g++",
+            "intelliSenseMode": "macos-gcc-arm64",
+            "cStandard": "c11",
+            "cppStandard": "gnu++17",
+            "includePath": [
+                "${workspaceFolder}/Code/LTDM_Kit",
+                "${workspaceFolder}/Code/LTDM_Kit/**",
+                "/Users/adamschmidt/Library/Arduino15/packages/teensy/hardware/avr/1.62.0/cores/teensy4",
+                "/Users/adamschmidt/Library/Arduino15/packages/teensy/hardware/avr/1.62.0/cores/teensy4/**",
+                "/Users/adamschmidt/Library/Arduino15/packages/teensy/hardware/avr/1.62.0/libraries",
+                "/Users/adamschmidt/Library/Arduino15/packages/teensy/hardware/avr/1.62.0/libraries/**",
+                "/Users/adamschmidt/Documents/Arduino/libraries",
+                "/Users/adamschmidt/Documents/Arduino/libraries/**",
+                "/Users/adamschmidt/Documents/Arduino/libraries/Adafruit_TLC5947",
+                "/Users/adamschmidt/Library/Arduino15/packages/teensy/hardware/avr/1.62.0/libraries/SPI",
+                "/Users/adamschmidt/Library/Arduino15/packages/teensy/hardware/avr/1.62.0/libraries/Servo"
+            ],
+            "defines": [
+                "ARDUINO=10607",
+                "ARDUINO_TEENSY41",
+                "TEENSYDUINO=160",
+                "__IMXRT1062__",
+                "F_CPU=600000000",
+                "USB_SERIAL",
+                "LAYOUT_US_ENGLISH"
+            ]
+        },
+        {
+            "name": "Teensy",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c17",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "macos-clang-arm64"
+        }
+    ]
+}

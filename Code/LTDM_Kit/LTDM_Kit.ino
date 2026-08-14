@@ -24,22 +24,22 @@ For Teensy 4.1 with RevB or RevC PCB plugged into the UI PCB OR controlled over 
 #include "capture_stream.h"
 
 void setup() {
-  delay(2000);
-  Serial.begin(2000000);
+  delay(2000);               // Wait for 2 seconds before starting the setup
+  Serial.begin(2000000);     // Initialize serial communication at 2,000,000 baud rate
   analogReadResolution(12);  // default should be 12
-  analogReadAveraging(0);     // Disable averaging (set to 0) for faster reading... 3 seems to be fine, but 4 is far too much
-  initUI();           // initialize the UI (declare pins etc.)
-  initServo();
-  initFlexPWM();
-  pinMode(GPIO_PIN, OUTPUT);
-  renderSetup(&context);
-  setInterrupts();
-  initSineTable();
-  captureStreamSetup();
+  analogReadAveraging(0);    // Disable averaging (set to 0) for faster reading... 3 seems to be fine, but 4 is far too much
+  initUI();                  // initialize the UI (declare pins etc.)
+  initServo();               // initialize servo
+  initFlexPWM();             // initialize FlexPWM
+  pinMode(GPIO_PIN, OUTPUT); // set GPIO_PIN as output
+  renderSetup(&context);     // setup rendering context
+  setInterrupts();           // enable interrupts
+  initSineTable();           // initialize sine table
+  captureStreamSetup();      // initialize capture stream
 }
 
 void loop() {
-  captureStreamLoop();
-  pollSerialControl();
-  output();
+  captureStreamLoop();       // handle capture stream loop
+  pollSerialControl();       // handle serial control polling
+  output();                  // update UI and output states
 }

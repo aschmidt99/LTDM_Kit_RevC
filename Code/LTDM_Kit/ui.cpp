@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include "Adafruit_TLC5947.h"
-#include "servo.h"
+#include "Servo.h"
 #include <cstdint>
 #include "render.h"
 #include "serialctrl.h"
@@ -126,7 +126,7 @@ void output() {
     return;
   }
 
-  if (millis() - lastPrint > 100) {
+  if (millis() - lastPrint > 100) { // update every 100 ms
 
     invNumCyclesPerSample = (float)SAMPLERATE / (float)F_BUS_ACTUAL;
     lastPrint = millis();
