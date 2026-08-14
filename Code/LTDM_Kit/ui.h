@@ -18,7 +18,7 @@ extern volatile float pedalStates[2];
 void initUI();
 void initServo();
 void readUI();
-void updateSevo();
+void updateServo();
 void updateLEDsFromButtons();
 void output();
 

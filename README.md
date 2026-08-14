@@ -2,26 +2,31 @@
 
 Firmware and hardware assets for a Teensy 4.1 based LTDM (Lorentz Time-Domain Multiplex) kit.
 
-The intended workflow is:
-
-1. Keep timing, PWM, sensing, and board plumbing stable.
-2. Iterate quickly on behavior in `Code/LTDM_Kit/render.cpp`.
-3. Map hardware controls (buttons/sliders/pedals) to your algorithm through the UI layer.
-
 ![VisualGuide](VisualGuide.jpg)
+
+### Programming
+Iterate quickly on dsp and string behavior in `Code/LTDM_Kit/render.cpp`, leaving precise timing of sensing and actuating untouched by user.
+### Interaction
+Map hardware controls (buttons/sliders/pedals) to your algorithm through the UI layer.
 
 ## Project Structure
 
-- `Code/LTDM_Kit`: Teensy firmware source
+- `Code/LTDM_Kit`: Firmware running on Teensy 4.1
 - `Code/Python`: capture, analysis, and Audacity automation scripts
-- `Electronics`: KiCad projects for board revisions
-- `CAD`: mechanical STEP assets
+- `Code/LTDM_Kit_Control.maxpat`: a maxpatch for overriding the LTDM Kit physical UI or running LTDM kit main board without UI.
+- `Electronics`: KiCad project (schematic and pcb) for PCB design
+- `CAD`: mechanical STEP/STL assets for enclosure
 
 Python tooling docs are in `Code/Python/README.md`.
 
 ## Program and Upload
+Firmware can be edited and uploaded to the teensy 4.1 via the Arduino 2.X IDE or from VS code.
+
+### Arduino IDE
+To use the Arduino IDE, you will need to [(install the Arduino IDE)](https://support.arduino.cc/hc/en-us/articles/360019833020-Download-and-install-Arduino-IDE). Once installed, download the Teensy Board library by following the instructions [(here)](https://www.pjrc.com/teensy/td_download.html).
 
 ### VS Code tasks (recommended)
+To update the code via the terminal in VS code, you can use ```arduino-cli```.
 
 Use `Cmd+Shift+P` -> `Tasks: Run Task` and select:
 
@@ -176,11 +181,11 @@ If servo hardware is removed, remove servo include/object/init/update calls to s
 
 ### Serial override mode
 
-`Code/LTDM_Kit/serialctrl.cpp` can override hardware controls via framed serial packets.
+`Code/LTDM_Kit/serialctrl.cpp` can override hardware controls via framed serial packets. There is an example max/msp patch ('LTDM_Kit_Control.maxpat') that already has this setup.
 
 - Start marker: `255`
 - End marker: `254`
-- Payload: mode + 16 sliders + 16 buttons + 2 pedals
+- Payload: mode + 16 sliders + 16 buttons + 2 pedals (34 bytes)
 
 When override is active, incoming values are written directly into the shared UI state arrays.
 
