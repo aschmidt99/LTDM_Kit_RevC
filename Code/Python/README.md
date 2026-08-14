@@ -11,13 +11,40 @@ This folder contains two main workflows:
 - `capture_teensy_plus_interface.py`: primary capture pipeline (Teensy + interface + Audacity import).
 - `run_capture_trial_prompt.py`: interactive launcher that prompts trial and duration.
 - `capture_teensy_stream.py`: Teensy-only binary/WAV capture.
-- `capture_teensy_to_audacity.py`: older Teensy + Audacity flow (kept for reference/troubleshooting).
+- `legacy/capture_teensy_to_audacity.py`: older Teensy + Audacity flow (kept for reference/troubleshooting).
 - `rigol_capture.py`: full 4-channel DS1054Z RAW capture to HDF5 + PNG + metadata.
 - `load_rigol_capture.py`: browse and plot saved Rigol captures.
 - `rigol_screen.py`: capture scope screen PNG or convert saved raw screen bytes.
 - `plot_teensy_stream.py`: quick matplotlib plot of Teensy `.bin` streams.
 - `rigol_common.py`: shared Rigol constants/helpers/plot logic.
-- `test.py`: utility script for inspecting raw Rigol screen `.bin` files.
+- `legacy/test.py`: utility script for inspecting raw Rigol screen `.bin` files.
+
+## Workflow Diagram
+
+```mermaid
+flowchart TD
+  T[VS Code Task:\nPython Capture Teensy+Interface] --> P[run_capture_trial_prompt.py]
+  P --> CPI[capture_teensy_plus_interface.py]
+  CPI --> TS[(Teensy Serial Stream)]
+  CPI --> IF[(Audio Interface Capture)]
+  CPI --> AU[(Audacity import/update optional)]
+  CPI --> EXP[(experiments/ output)]
+
+  U1[Manual run] --> CTS[capture_teensy_stream.py]
+  CTS --> EXP
+
+  U2[Manual run] --> RIG[rigol_capture.py]
+  RIG --> RC[rigol_common.py]
+  RIG --> RS[rigol_screen.py]
+  RIG --> EXP
+
+  U3[Manual run] --> LRC[load_rigol_capture.py]
+  LRC --> RC
+  LRC --> EXP
+
+  LEG[legacy/] --> LTA[legacy/capture_teensy_to_audacity.py]
+  LEG --> TST[legacy/test.py]
+```
 
 ## Requirements
 
@@ -138,7 +165,7 @@ python3 capture_teensy_stream.py \
   --save-wav
 ```
 
-## 4) `capture_teensy_to_audacity.py`
+## 4) `legacy/capture_teensy_to_audacity.py`
 
 Legacy Audacity automation script.
 
@@ -148,7 +175,7 @@ Run example:
 
 ```bash
 cd Code/Python
-python3 capture_teensy_to_audacity.py --port /dev/cu.usbmodem199934501
+python3 legacy/capture_teensy_to_audacity.py --port /dev/cu.usbmodem199934501
 ```
 
 ## 5) `plot_teensy_stream.py`
@@ -219,7 +246,7 @@ Contains:
 - RAW count to voltage conversion
 - Scope-style plotting + zoom/decimation behavior
 
-## 10) `test.py`
+## 10) `legacy/test.py`
 
 Small diagnostic utility for raw scope screen bytes.
 
@@ -229,7 +256,7 @@ Run:
 
 ```bash
 cd Code/Python
-python3 test.py
+python3 legacy/test.py
 ```
 
 ## Data Layout

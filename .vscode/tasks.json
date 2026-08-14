@@ -67,11 +67,11 @@
       "problemMatcher": []
     },
     {
-      "label": "Python: Capture Teensy -> Audacity",
+      "label": "Python: Legacy Capture Teensy -> Audacity",
       "type": "shell",
       "command": "python3",
       "args": [
-        "capture_teensy_to_audacity.py",
+        "legacy/capture_teensy_to_audacity.py",
         "--port",
         "/dev/cu.usbmodem199934501"
       ],
