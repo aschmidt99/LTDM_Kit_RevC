@@ -210,4 +210,4 @@ It prompts for trial and duration, auto-suggests the next trial number, and laun
 
 Full Python docs:
 
-- `Code/Python/README.md`
+- `Code/Python/PYTHONS_README.md`

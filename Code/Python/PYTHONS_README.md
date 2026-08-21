@@ -60,6 +60,23 @@ Notes:
 - On macOS, `sounddevice` requires microphone permissions for terminal/VS Code.
 - Audacity automation requires mod-script-pipe enabled and Audacity running.
 
+### macOS Apple Silicon note (important)
+
+If you see an error like "incompatible architecture (have 'x86_64', need 'arm64')" when importing `matplotlib`, you are launching the script with the wrong Python interpreter.
+
+For this repo, use the project virtual environment interpreter directly:
+
+```bash
+cd Code/Python
+../../.venv/bin/python rigol_capture.py
+```
+
+If needed, reinstall the plotting stack into that same interpreter:
+
+```bash
+../../.venv/bin/python -m pip install --upgrade --force-reinstall matplotlib numpy
+```
+
 ## Recommended Daily Workflow (LTDM Capture)
 
 ### Option A: VS Code task (recommended)
@@ -70,7 +87,7 @@ Run task:
 
 This task runs `run_capture_trial_prompt.py`, which:
 
-- Suggests next trial number from `experiments/TeensyCapture/audacity_timeline_state.json`.
+- Suggests next trial number from `experiments/TeensyCapture/orchestration/audacity_timeline_state.json` (with folder fallback).
 - Lets you override trial (including rerun of an existing trial).
 - Prompts duration in seconds.
 - Launches `capture_teensy_plus_interface.py` with project defaults.
@@ -113,12 +130,12 @@ What it does:
 - Optionally imports/appends clips to 4 fixed Audacity tracks.
 
 Key outputs per trial:
-- `teensy_stream.bin`
-- `teensy_stream_Ch1.wav`
-- `teensy_stream_ch2.wav`
-- `interface_capture_ch1.wav`
-- `interface_capture_ch2.wav`
-- `teensy_interface_capture_metadata.json`
+- `sessions/<date>_sessionXX/trials/trial_####/macro_audio/teensy/teensy_stream.bin`
+- `sessions/<date>_sessionXX/trials/trial_####/macro_audio/teensy/teensy_stream_Ch1.wav`
+- `sessions/<date>_sessionXX/trials/trial_####/macro_audio/teensy/teensy_stream_ch2.wav`
+- `sessions/<date>_sessionXX/trials/trial_####/macro_audio/interface/interface_capture_ch1.wav`
+- `sessions/<date>_sessionXX/trials/trial_####/macro_audio/interface/interface_capture_ch2.wav`
+- `sessions/<date>_sessionXX/trials/trial_####/trial_audio_capture_metadata.json`
 
 Useful flags:
 - `--iface-list-devices`
@@ -186,7 +203,7 @@ Run example:
 
 ```bash
 cd Code/Python
-python3 plot_teensy_stream.py experiments/TeensyCapture/trial_1/teensy_stream.bin --duration 1.0 --channel 1
+python3 plot_teensy_stream.py experiments/TeensyCapture/sessions/2026-08-14_session01/trials/trial_0001/macro_audio/teensy/teensy_stream.bin --duration 1.0 --channel 1
 ```
 
 ## 6) `rigol_capture.py`
@@ -198,7 +215,7 @@ What it does:
 - Captures scope screen.
 - Stops scope if needed.
 - Reads 6M-point RAW data for all 4 channels.
-- Saves HDF5 + trial metadata + rendered PNG.
+- Saves HDF5 + scope metadata + rendered PNG under the corresponding trial's `micro_scope/capture_###` folder.
 
 Run:
 
@@ -266,16 +283,34 @@ Typical output tree:
 ```text
 Code/Python/experiments/
   TeensyCapture/
-    audacity_timeline_state.json
-    trial_1/
-    trial_2/
-  <RigolExperimentName>/
+    orchestration/
+      audacity_timeline_state.json
+    sessions/
+      2026-08-14_session01/
+        logs/
+        trials/
+          trial_0001/
+            macro_audio/
+              teensy/
+                teensy_stream.bin
+                teensy_stream_Ch1.wav
+                teensy_stream_ch2.wav
+              interface/
+                interface_capture_ch1.wav
+                interface_capture_ch2.wav
+              audacity/
+            micro_scope/
+              capture_001/
+                rigol_capture.h5
+                rigol_capture.png
+                rigol_screen.png
+                scope_capture_meta.json
+            sync/
+            qc/
+  <OtherExperimentName>/
     experiment.json
-    trial_1/
-      rigol_capture.h5
-      rigol_capture.png
-      rigol_screen.png
-      trial_metadata.json
+    sessions/
+      ...
 ```
 
 ## Troubleshooting

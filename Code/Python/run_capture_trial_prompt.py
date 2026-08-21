@@ -7,7 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-STATE_PATH = Path("experiments/TeensyCapture/audacity_timeline_state.json")
+from path_layout import build_experiment_paths, existing_trial_numbers
+
+OUTPUT_DIR = "experiments"
+EXPERIMENT_NAME = "TeensyCapture"
+STATE_PATH = build_experiment_paths(OUTPUT_DIR, EXPERIMENT_NAME)["orchestration_dir"] / "audacity_timeline_state.json"
 CAPTURE_SCRIPT = Path("capture_teensy_plus_interface.py")
 
 DEFAULT_PORT = "/dev/cu.usbmodem199934501"
@@ -52,6 +56,10 @@ def suggest_trial_and_duration(state: dict) -> tuple[int, int, set[int]]:
         if isinstance(duration_s, (int, float)) and duration_s > 0:
             last_duration = int(max(1, round(float(duration_s))))
 
+    if not trials:
+        exp_dir = build_experiment_paths(OUTPUT_DIR, EXPERIMENT_NAME)["exp_dir"]
+        trials = set(existing_trial_numbers(exp_dir))
+
     suggested_trial = (max(trials) + 1) if trials else 1
     suggested_duration = last_duration if last_duration is not None else DEFAULT_DURATION_S
     return suggested_trial, suggested_duration, trials
@@ -79,6 +87,10 @@ def build_command(trial: int, duration_s: int) -> list[str]:
         str(CAPTURE_SCRIPT),
         "--port",
         DEFAULT_PORT,
+        "--output-dir",
+        OUTPUT_DIR,
+        "--experiment",
+        EXPERIMENT_NAME,
         "--trial",
         str(trial),
         "--duration",

@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from datetime import datetime
 import json
+from path_layout import build_trial_paths
 
 CMD_ARM = b'A'
 CMD_STOP = b'T'
@@ -90,9 +91,9 @@ def prompt_duration(default_seconds: int) -> int:
 def main():
     args = parse_args()
     duration_seconds = args.duration if args.duration is not None else prompt_duration(DEFAULT_DURATION_S)
-    exp_dir = Path(args.output_dir) / safe_name(args.experiment)
-    trial_dir = exp_dir / f"trial_{args.trial}"
-    trial_dir.mkdir(parents=True, exist_ok=True)
+    layout = build_trial_paths(args.output_dir, args.experiment, args.trial, create=True)
+    trial_dir = layout["trial_dir"]
+    teensy_dir = layout["teensy_dir"]
 
     metadata = {
         "experiment_title": args.experiment,
@@ -103,13 +104,13 @@ def main():
         "capture_time": datetime.now().isoformat(),
     }
 
-    raw_path = trial_dir / "teensy_stream.bin"
-    ch1_raw_path = trial_dir / "teensy_stream_ch1.bin"
-    ch2_raw_path = trial_dir / "teensy_stream_ch2.bin"
-    wav_path = trial_dir / "teensy_stream.wav"
-    ch1_wav_path = trial_dir / "teensy_stream_ch1.wav"
-    ch2_wav_path = trial_dir / "teensy_stream_ch2.wav"
-    meta_path = trial_dir / "teensy_capture_metadata.json"
+    raw_path = teensy_dir / "teensy_stream.bin"
+    ch1_raw_path = teensy_dir / "teensy_stream_ch1.bin"
+    ch2_raw_path = teensy_dir / "teensy_stream_ch2.bin"
+    wav_path = teensy_dir / "teensy_stream.wav"
+    ch1_wav_path = teensy_dir / "teensy_stream_ch1.wav"
+    ch2_wav_path = teensy_dir / "teensy_stream_ch2.wav"
+    meta_path = trial_dir / "trial_teensy_stream_metadata.json"
 
     with serial.Serial(args.port, 2000000, timeout=1, dsrdtr=False, rtscts=False, xonxoff=False) as ser:
         time.sleep(0.5)

@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 import serial
+from path_layout import build_trial_paths
 
 CMD_ARM = b"A"
 CMD_STOP = b"T"
@@ -777,13 +778,13 @@ def compute_interface_stats(data, sample_rate: int):
     return stats
 
 
-def save_interface_wav_channels(data, sample_rate: int, trial_dir: Path, channels: int, subtype: str = "PCM_16"):
+def save_interface_wav_channels(data, sample_rate: int, out_dir: Path, channels: int, subtype: str = "PCM_16"):
     import soundfile as sf
 
     out_paths = []
     channel_count = min(channels, data.shape[1])
     for ch in range(channel_count):
-        out_path = trial_dir / f"interface_capture_ch{ch + 1}.wav"
+        out_path = out_dir / f"interface_capture_ch{ch + 1}.wav"
         sf.write(str(out_path), data[:, ch], sample_rate, subtype=subtype)
         out_paths.append(out_path)
     return out_paths
@@ -798,14 +799,18 @@ def main():
 
     duration_seconds = args.duration if args.duration is not None else prompt_duration(DEFAULT_DURATION_S)
 
-    exp_dir = Path(args.output_dir) / safe_name(args.experiment)
-    trial_dir = exp_dir / f"trial_{args.trial}"
-    trial_dir.mkdir(parents=True, exist_ok=True)
+    layout = build_trial_paths(args.output_dir, args.experiment, args.trial, create=True)
+    exp_dir = layout["exp_dir"]
+    trial_dir = layout["trial_dir"]
+    teensy_dir = layout["teensy_dir"]
+    interface_dir = layout["interface_dir"]
+    orchestration_dir = layout["orchestration_dir"]
+    audacity_dir = layout["audacity_dir"]
 
-    raw_path = trial_dir / "teensy_stream.bin"
-    ch1_wav_path = trial_dir / "teensy_stream_Ch1.wav"
-    ch2_wav_path = trial_dir / "teensy_stream_ch2.wav"
-    meta_path = trial_dir / "teensy_interface_capture_metadata.json"
+    raw_path = teensy_dir / "teensy_stream.bin"
+    ch1_wav_path = teensy_dir / "teensy_stream_Ch1.wav"
+    ch2_wav_path = teensy_dir / "teensy_stream_ch2.wav"
+    meta_path = trial_dir / "trial_audio_capture_metadata.json"
 
     iface = None
     if args.iface_enable:
@@ -973,7 +978,7 @@ def main():
             iface_channel_paths = save_interface_wav_channels(
                 iface_data,
                 sample_rate=args.iface_sample_rate,
-                trial_dir=trial_dir,
+                out_dir=interface_dir,
                 channels=args.iface_channels,
                 subtype=args.iface_subtype,
             )
@@ -1004,7 +1009,7 @@ def main():
         # Maintain per-trial timeline state and optionally push 4 fixed tracks into Audacity.
         audacity_timeline = {
             "enabled": bool(args.audacity_import),
-            "state_path": str(exp_dir / AUDACITY_STATE_FILENAME),
+            "state_path": str(orchestration_dir / AUDACITY_STATE_FILENAME),
             "records": 0,
             "latest_start_s": 0.0,
             "latest_end_s": 0.0,
@@ -1013,7 +1018,7 @@ def main():
             if not iface_channel_paths or len(iface_channel_paths) < 2:
                 raise SystemExit("Audacity import requires interface_capture_ch1.wav and interface_capture_ch2.wav")
 
-            state_path = exp_dir / AUDACITY_STATE_FILENAME
+            state_path = orchestration_dir / AUDACITY_STATE_FILENAME
             if args.audacity_reset_timeline or args.trial == 1:
                 state = {"next_start_s": 0.0, "records": []}
             else:
@@ -1110,6 +1115,7 @@ def main():
                 "next_start_s": float(next_start_s),
                 "import_mode": "per-trial-clips-4-tracks",
                 "rebuild_mode": bool(do_full_rebuild),
+                "trial_audacity_dir": str(audacity_dir),
             }
 
         metadata = {
@@ -1162,6 +1168,16 @@ def main():
                 "raw": str(raw_path),
                 "teensy_ch1_wav": str(ch1_wav_path),
                 "teensy_ch2_wav": str(ch2_wav_path),
+                "interface_ch1_wav": str(iface_channel_paths[0]) if len(iface_channel_paths) > 0 else "",
+                "interface_ch2_wav": str(iface_channel_paths[1]) if len(iface_channel_paths) > 1 else "",
+            },
+            "layout": {
+                "experiment_dir": str(exp_dir),
+                "session_dir": str(layout["session_dir"]),
+                "trial_dir": str(trial_dir),
+                "macro_audio_dir": str(layout["macro_audio_dir"]),
+                "micro_scope_dir": str(layout["micro_scope_dir"]),
+                "sync_dir": str(layout["sync_dir"]),
             },
             "audacity_timeline": audacity_timeline,
         }

@@ -13,6 +13,7 @@ Requirements:
 """
 
 import h5py
+import json
 import numpy as np
 from pathlib import Path
 import questionary
@@ -23,6 +24,9 @@ from rigol_common import (
     build_time_axis,
     make_scope_plot,
 )
+
+EXPERIMENTS_DIR = Path("experiments")
+TRIAL_META_NAME = "scope_capture_meta.json"
 
 
 # ─────────────────────────────────────────────
@@ -94,35 +98,87 @@ def load_capture(filename: Path) -> tuple[dict, dict, dict, dict]:
 
 def main():
 
-    # ── Find captures ─────────────────────────
-    files = sorted(
-        Path(".").rglob("rigol_capture.h5"),
+    # ── Find all captures under experiments/ ──
+    if not EXPERIMENTS_DIR.exists():
+        print(f"No '{EXPERIMENTS_DIR}' directory found. Run rigol_capture.py first.")
+        return
+
+    h5_files = sorted(
+        EXPERIMENTS_DIR.rglob("rigol_capture.h5"),
         key=lambda f: f.stat().st_mtime,
         reverse=True,
     )
 
-    if not files:
-        print("No Rigol capture files found in the current directory.")
+    if not h5_files:
+        print(f"No Rigol capture files found under {EXPERIMENTS_DIR}/")
         return
 
-    # ── Select capture ────────────────────────
-    choices = [str(f.relative_to(Path.cwd())) for f in files]
-    chosen = questionary.select(
-        "Select a capture:",
-        choices=choices,
+    # ── Group by experiment (top-level folder under experiments/) ────────
+    # Path structure:
+    #   experiments/<exp>/sessions/<date>_sessionN/trials/trial_NNNN/
+    #       micro_scope/capture_NNN/rigol_capture.h5
+    def experiment_name(h5: Path) -> str:
+        try:
+            return h5.relative_to(EXPERIMENTS_DIR).parts[0]
+        except ValueError:
+            return "unknown"
+
+    experiments = sorted({experiment_name(f) for f in h5_files})
+
+    if len(experiments) > 1:
+        chosen_exp = questionary.select(
+            "Select experiment:",
+            choices=experiments,
+        ).ask()
+        if chosen_exp is None:
+            return
+        h5_files = [f for f in h5_files if experiment_name(f) == chosen_exp]
+    else:
+        chosen_exp = experiments[0]
+
+    # ── Build labelled choices for the selected experiment ────────────────
+    def capture_label(h5: Path) -> str:
+        parts = h5.relative_to(EXPERIMENTS_DIR).parts
+        # parts: exp / sessions / <session> / trials / <trial> / micro_scope / <capture> / rigol_capture.h5
+        trial_part   = parts[4] if len(parts) > 4 else "?"
+        capture_part = parts[6] if len(parts) > 6 else "?"
+        session_part = parts[2] if len(parts) > 2 else "?"
+
+        meta_path = h5.parent / TRIAL_META_NAME
+        description = ""
+        capture_time = ""
+        if meta_path.exists():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                description = meta.get("description", "")
+                capture_time = meta.get("capture_time", "")
+            except Exception:
+                pass
+
+        label = f"{trial_part} / {capture_part}  [{session_part}]"
+        if capture_time:
+            label += f"  {capture_time}"
+        if description:
+            label += f"  — {description}"
+        return label
+
+    choices = {capture_label(f): f for f in h5_files}
+
+    chosen_label = questionary.select(
+        f"Select capture  ({chosen_exp}):",
+        choices=list(choices.keys()),
     ).ask()
 
-    if chosen is None:
-        print("No file selected.")
+    if chosen_label is None:
         return
 
-    filename = Path(chosen)
+    filename = choices[chosen_label]
 
     # ── Load ──────────────────────────────────
     raw_counts, time_axes, voltages, metadata = load_capture(filename)
 
     # ── Print summary ─────────────────────────
-    print(f"\nLoaded: {filename.name}")
+    print(f"\nLoaded: {filename.relative_to(EXPERIMENTS_DIR)}")
     for ch in CHANNELS:
         raw  = raw_counts[ch]
         v    = voltages[ch]
@@ -139,16 +195,22 @@ def main():
     if screen_png and Path(screen_png).exists():
         print(f"\n  📷 Scope screen: {screen_png}")
 
-    # ── Plot ──────────────────────────────────
-    print("\nOpening interactive plot...")
+    # ── Build plot titles from metadata ───────
+    exp_title    = metadata.get("experiment_title", chosen_exp)
+    description  = metadata.get("description", "")
     capture_time = metadata.get("capture_time", filename.stem)
 
+    title_line1 = f"{exp_title}  [{filename.parent.name}]"
+    title_line2 = description if description else str(capture_time)
+
+    # ── Plot ──────────────────────────────────
+    print("\nOpening interactive plot...")
     make_scope_plot(
         time_axes   = time_axes,
         voltages    = voltages,
-        title_line1 = f"Rigol DS1054Z — RAW Capture  [{filename.name}]",
-        title_line2 = str(capture_time),
-        png_path    = None,    # no PNG save on load — view only
+        title_line1 = title_line1,
+        title_line2 = title_line2,
+        png_path    = None,
     )
 
 

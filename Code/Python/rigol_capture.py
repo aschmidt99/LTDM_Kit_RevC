@@ -23,7 +23,6 @@ from rigol_common import (
 import getpass
 import json
 import re
-import shutil
 import numpy as np
 import h5py
 from datetime import datetime
@@ -32,6 +31,7 @@ from rigol_screen import save_screen
 import questionary
 import sys
 import time
+from path_layout import build_trial_paths, existing_trial_numbers as list_existing_trials, next_capture_dir, safe_name
 
 # ─────────────────────────────────────────────
 # CONFIGURATION
@@ -43,7 +43,7 @@ OUTPUT_PNG  = "rigol_capture.png"
 SCREEN_PNG  = "rigol_screen.png"
 EXPERIMENTS_DIR = Path("experiments")
 EXPERIMENT_META_NAME = "experiment.json"
-TRIAL_META_NAME = "trial_metadata.json"
+TRIAL_META_NAME = "scope_capture_meta.json"
 TRIAL_DIR_PREFIX = "trial_"
 TRIAL_HDF5_NAME = "rigol_capture.h5"
 TRIAL_PNG_NAME = "rigol_capture.png"
@@ -53,13 +53,6 @@ TRIAL_SCREEN_NAME = "rigol_screen.png"
 # ─────────────────────────────────────────────
 # HELPER: Experiment metadata and folder utilities
 # ─────────────────────────────────────────────
-
-def safe_name(value: str) -> str:
-    value = value.strip()
-    value = re.sub(r"[^A-Za-z0-9 _-]", "", value)
-    value = re.sub(r"[\s]+", "_", value)
-    return value or "untitled_experiment"
-
 
 def parse_preamble(preamble_str: str) -> dict:
     fields   = preamble_str.strip().split(",")
@@ -124,15 +117,7 @@ def save_experiment_metadata(exp_dir: Path, meta: dict[str, str]) -> None:
 
 
 def existing_trial_numbers(exp_dir: Path) -> list[int]:
-    if not exp_dir.exists():
-        return []
-    trials = []
-    for child in exp_dir.iterdir():
-        if child.is_dir() and child.name.startswith(TRIAL_DIR_PREFIX):
-            match = re.match(rf"^{TRIAL_DIR_PREFIX}(\d+)$", child.name)
-            if match:
-                trials.append(int(match.group(1)))
-    return sorted(trials)
+    return list_existing_trials(exp_dir)
 
 
 def ask_experiment_title(default_title: str) -> str:
@@ -228,7 +213,6 @@ def ask_experiment_metadata(defaults: dict[str, str]) -> dict[str, str]:
 
 
 def ask_trial_number(exp_dir: Path, default_trial: int) -> int:
-    existing = set(existing_trial_numbers(exp_dir))
     default_str = str(default_trial)
     while True:
         answer = questionary.text(
@@ -242,15 +226,7 @@ def ask_trial_number(exp_dir: Path, default_trial: int) -> int:
         if not answer.isdigit() or int(answer) < 1:
             print("Please enter a positive integer.")
             continue
-        trial = int(answer)
-        if trial in existing and answer != default_str:
-            overwrite = questionary.confirm(
-                f"Trial {trial} already exists. Overwrite previous data?",
-                default=False,
-            ).ask()
-            if not overwrite:
-                continue
-        return trial
+        return int(answer)
 
 
 # ─────────────────────────────────────────────
@@ -349,7 +325,39 @@ def read_channel(scope: DS1054Z,
 # ─────────────────────────────────────────────
 
 def main():
+    import socket
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # ── Connect (before prompts, so a missing scope fails fast) ──────────
+    print(f"Connecting to DS1054Z at {SCOPE_IP} via LAN/VXI-11...")
+
+    # Port 80 (HTTP web interface) is a reliable TCP reachability probe.
+    try:
+        with socket.create_connection((SCOPE_IP, 80), timeout=3.0):
+            pass
+    except (socket.timeout, ConnectionRefusedError, OSError) as e:
+        print(f"\n❌ Scope not reachable at {SCOPE_IP}: {e}")
+        print("   Check that the scope is powered on and connected, then try again.")
+        sys.exit(1)
+
+    # VXI-11 connection can still hang if the instrument server is slow;
+    # wrap it in a thread so we can enforce a timeout.
+    try:
+        with ThreadPoolExecutor(max_workers=1) as ex:
+            scope = ex.submit(DS1054Z, SCOPE_IP).result(timeout=8.0)
+    except FuturesTimeout:
+        print(f"\n❌ Connection to {SCOPE_IP} timed out. Try again.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ Could not connect: {e}")
+        sys.exit(1)
+
+    idn = scope.idn
+    print(f"✅ Connected: {idn}\n")
+
+    # ── Metadata prompts ──────────────────────
     previous_meta = load_previous_metadata()
     default_title = previous_meta.get("experiment_title", "")
 
@@ -365,26 +373,16 @@ def main():
     default_trial = max(existing_trials) + 1 if existing_trials else 1
     trial_number = ask_trial_number(exp_dir, default_trial)
 
-    trial_dir = exp_dir / f"{TRIAL_DIR_PREFIX}{trial_number}"
-    if trial_dir.exists():
-        shutil.rmtree(trial_dir)
-    trial_dir.mkdir(parents=True, exist_ok=True)
+    layout = build_trial_paths(EXPERIMENTS_DIR, experiment_title, trial_number, create=True)
+    trial_dir = layout["trial_dir"]
+    micro_scope_dir = layout["micro_scope_dir"]
+    capture_dir = next_capture_dir(micro_scope_dir)
+    capture_dir.mkdir(parents=True, exist_ok=True)
 
-    hdf5_path = trial_dir / TRIAL_HDF5_NAME
-    png_path = trial_dir / TRIAL_PNG_NAME
-    screen_path = trial_dir / TRIAL_SCREEN_NAME
-    trial_meta_path = trial_dir / TRIAL_META_NAME
-
-    # ── Connect ───────────────────────────────
-    print(f"Connecting to DS1054Z at {SCOPE_IP} via LAN/VXI-11...")
-    try:
-        scope = DS1054Z(SCOPE_IP)
-    except Exception as e:
-        print(f"\n❌ Could not connect: {e}")
-        sys.exit(1)
-
-    idn = scope.idn
-    print(f"✅ Connected: {idn}\n")
+    hdf5_path = capture_dir / TRIAL_HDF5_NAME
+    png_path = capture_dir / TRIAL_PNG_NAME
+    screen_path = capture_dir / TRIAL_SCREEN_NAME
+    trial_meta_path = capture_dir / TRIAL_META_NAME
 
     # ── Acquisition state ─────────────────────
     mdep = scope.query(":ACQ:MDEP?").strip()
@@ -470,12 +468,20 @@ def main():
 
     trial_meta = {
         "trial_number": trial_number,
+        "scope_capture_id": capture_dir.name,
         "capture_time": timestamp,
         "experiment_title": current_meta.get("experiment_title", ""),
         "description": current_meta.get("description", ""),
         "operator": current_meta.get("operator", ""),
         "hdf5_path": str(hdf5_path),
         "screen_png": str(screen_path) if screen_path else "",
+        "layout": {
+            "experiment_dir": str(exp_dir),
+            "session_dir": str(layout["session_dir"]),
+            "trial_dir": str(trial_dir),
+            "micro_scope_dir": str(micro_scope_dir),
+            "capture_dir": str(capture_dir),
+        },
         **{
             k: v
             for k, v in current_meta.items()
