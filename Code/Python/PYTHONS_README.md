@@ -1,23 +1,20 @@
 # LTDM Python Scripts
-# warning: I vibe-coded the hell out of this shit big time.
-
+## Warning: I vibe-coded the hell out of this shit big time.
 This folder contains two main workflows:
 
 - LTDM Teensy + audio-interface capture, with optional Audacity timeline automation.
-- Rigol DS1054Z waveform/screenshot capture and review.
+- Rigol DS1054Z data capture and review.
 
 ## Folder Highlights
 
 - `capture_teensy_plus_interface.py`: primary capture pipeline (Teensy + interface + Audacity import).
 - `run_capture_trial_prompt.py`: interactive launcher that prompts trial and duration.
 - `capture_teensy_stream.py`: Teensy-only binary/WAV capture.
-- `legacy/capture_teensy_to_audacity.py`: older Teensy + Audacity flow (kept for reference/troubleshooting).
 - `rigol_capture.py`: full 4-channel DS1054Z RAW capture to HDF5 + PNG + metadata.
 - `load_rigol_capture.py`: browse and plot saved Rigol captures.
 - `rigol_screen.py`: capture scope screen PNG or convert saved raw screen bytes.
 - `plot_teensy_stream.py`: quick matplotlib plot of Teensy `.bin` streams.
 - `rigol_common.py`: shared Rigol constants/helpers/plot logic.
-- `legacy/test.py`: utility script for inspecting raw Rigol screen `.bin` files.
 
 ## Workflow Diagram
 
@@ -41,9 +38,6 @@ flowchart TD
   U3[Manual run] --> LRC[load_rigol_capture.py]
   LRC --> RC
   LRC --> EXP
-
-  LEG[legacy/] --> LTA[legacy/capture_teensy_to_audacity.py]
-  LEG --> TST[legacy/test.py]
 ```
 
 ## Requirements
@@ -182,20 +176,7 @@ python3 capture_teensy_stream.py \
   --save-wav
 ```
 
-## 4) `legacy/capture_teensy_to_audacity.py`
-
-Legacy Audacity automation script.
-
-Use this mainly for regression/troubleshooting versus the newer pipeline.
-
-Run example:
-
-```bash
-cd Code/Python
-python3 legacy/capture_teensy_to_audacity.py --port /dev/cu.usbmodem199934501
-```
-
-## 5) `plot_teensy_stream.py`
+## 4) `plot_teensy_stream.py`
 
 Quick waveform viewer for Teensy `.bin` captures.
 
@@ -206,7 +187,7 @@ cd Code/Python
 python3 plot_teensy_stream.py experiments/TeensyCapture/sessions/2026-08-14_session01/trials/trial_0001/macro_audio/teensy/teensy_stream.bin --duration 1.0 --channel 1
 ```
 
-## 6) `rigol_capture.py`
+## 5) `rigol_capture.py`
 
 Interactive DS1054Z RAW waveform capture.
 
@@ -224,7 +205,7 @@ cd Code/Python
 python3 rigol_capture.py
 ```
 
-## 7) `load_rigol_capture.py`
+## 6) `load_rigol_capture.py`
 
 Interactive loader/viewer for prior Rigol captures.
 
@@ -235,7 +216,7 @@ cd Code/Python
 python3 load_rigol_capture.py
 ```
 
-## 8) `rigol_screen.py`
+## 7) `rigol_screen.py`
 
 Screen capture/conversion helper.
 
@@ -253,7 +234,7 @@ cd Code/Python
 python3 rigol_screen.py --bin 20260811_rigol_screen.bin
 ```
 
-## 9) `rigol_common.py`
+## 8) `rigol_common.py`
 
 Shared module used by Rigol scripts.
 
@@ -262,19 +243,6 @@ Contains:
 - Channel mappings/colors
 - RAW count to voltage conversion
 - Scope-style plotting + zoom/decimation behavior
-
-## 10) `legacy/test.py`
-
-Small diagnostic utility for raw scope screen bytes.
-
-Use when debugging corrupted/partial `.bin` screen captures.
-
-Run:
-
-```bash
-cd Code/Python
-python3 legacy/test.py
-```
 
 ## Data Layout
 

@@ -195,7 +195,6 @@ The Python tools in `Code/Python` are used for measurement, capture automation, 
 
 - `capture_teensy_plus_interface.py`: Capture audio directly from Teensy (what the teensy 'hears' from the EMF sensing circuitry) and 2 channels of audio from a connected audio interface. Optionally import these files directly to audacity.
 - `run_capture_trial_prompt.py`: Prompt for trial/duration and launch the full capture pipeline with known-good defaults.
-- `legacy/capture_teensy_to_audacity.py`: Legacy Teensy capture + Audacity automation flow for troubleshooting or comparison.
 - `capture_teensy_stream.py`: Capture Teensy stream only (without interface capture), with optional WAV export.
 - `rigol_capture.py`: Run Rigol DS1054Z waveform/screenshot capture and write trial metadata.
 - `load_rigol_capture.py`: Load and interactively inspect saved Rigol capture files.
