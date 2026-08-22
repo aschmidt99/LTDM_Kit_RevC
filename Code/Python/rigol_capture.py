@@ -20,6 +20,7 @@ from rigol_common import (
     counts_to_voltage, build_time_axis,
     make_scope_plot,
 )
+import argparse
 import getpass
 import json
 import re
@@ -27,6 +28,7 @@ import numpy as np
 import h5py
 from datetime import datetime
 from pathlib import Path
+from experiment_profile import load_experiment_profile, prompt_experiment_profile, save_experiment_profile
 from rigol_screen import save_screen
 import questionary
 import sys
@@ -42,7 +44,6 @@ OUTPUT_HDF5 = "rigol_capture.h5"
 OUTPUT_PNG  = "rigol_capture.png"
 SCREEN_PNG  = "rigol_screen.png"
 EXPERIMENTS_DIR = Path("experiments")
-EXPERIMENT_META_NAME = "experiment.json"
 TRIAL_META_NAME = "scope_capture_meta.json"
 TRIAL_DIR_PREFIX = "trial_"
 TRIAL_HDF5_NAME = "rigol_capture.h5"
@@ -99,25 +100,29 @@ def experiment_dir_for_title(title: str) -> Path:
     return EXPERIMENTS_DIR / safe_name(title)
 
 
-def load_experiment_metadata(exp_dir: Path) -> dict[str, str]:
-    meta_file = exp_dir / EXPERIMENT_META_NAME
-    if not meta_file.exists():
-        return {}
-
-    try:
-        return json.loads(meta_file.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-
-def save_experiment_metadata(exp_dir: Path, meta: dict[str, str]) -> None:
-    exp_dir.mkdir(parents=True, exist_ok=True)
-    meta_file = exp_dir / EXPERIMENT_META_NAME
-    meta_file.write_text(json.dumps(meta, indent=2), encoding="utf-8")
-
-
 def existing_trial_numbers(exp_dir: Path) -> list[int]:
     return list_existing_trials(exp_dir)
+
+
+def load_trial_manifest(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_trial_manifest(path: Path, manifest: dict) -> None:
+    path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Capture Rigol DS1054Z data for an LTDM trial.")
+    parser.add_argument("--experiment", help="Experiment title to attach this scope capture to")
+    parser.add_argument("--trial", type=int, help="Trial number to attach this scope capture to")
+    return parser.parse_args()
 
 
 def ask_experiment_title(default_title: str) -> str:
@@ -135,81 +140,26 @@ def ask_experiment_title(default_title: str) -> str:
     return title
 
 
-def ask_experiment_metadata(defaults: dict[str, str]) -> dict[str, str]:
-    meta = {}
-
-    meta["operator"] = questionary.text(
-        "Operator name:",
-        default=defaults.get("operator", getpass.getuser()),
-    ).ask() or defaults.get("operator", getpass.getuser())
-
-    meta["description"] = questionary.text(
-        "Short description / notes:",
-        default=defaults.get("description", ""),
-    ).ask() or defaults.get("description", "")
-
-    meta["string_material"] = questionary.text(
-        "String material:",
-        default=defaults.get("string_material", ""),
-    ).ask() or defaults.get("string_material", "")
-
-    meta["speaking_length_cm"] = questionary.text(
-        "Speaking length of string (cm):",
-        default=defaults.get("speaking_length_cm", ""),
-    ).ask() or defaults.get("speaking_length_cm", "")
-
-    meta["string_gauge_mm"] = questionary.text(
-        "String gauge (mm):",
-        default=defaults.get("string_gauge_mm", ""),
-    ).ask() or defaults.get("string_gauge_mm", "")
-
-    meta["string_resistance_ohm"] = questionary.text(
-        "String resistance (Ω):",
-        default=defaults.get("string_resistance_ohm", ""),
-    ).ask() or defaults.get("string_resistance_ohm", "")
-
-    meta["string_fundamental_hz"] = questionary.text(
-        "String fundamental frequency (Hz):",
-        default=defaults.get("string_fundamental_hz", ""),
-    ).ask() or defaults.get("string_fundamental_hz", "")
-
-    meta["magnet_grade"] = questionary.text(
-        "Magnet grade (e.g. N35):",
-        default=defaults.get("magnet_grade", ""),
-    ).ask() or defaults.get("magnet_grade", "")
-
-    meta["magnet_pull_strength_kg"] = questionary.text(
-        "Magnet pull strength (kg):",
-        default=defaults.get("magnet_pull_strength_kg", ""),
-    ).ask() or defaults.get("magnet_pull_strength_kg", "")
-
-    meta["magnet_position_cm"] = questionary.text(
-        "Magnet position along string (cm):",
-        default=defaults.get("magnet_position_cm", ""),
-    ).ask() or defaults.get("magnet_position_cm", "")
-
-    meta["magnet_distance_mm"] = questionary.text(
-        "Magnet distance from string center (mm):",
-        default=defaults.get("magnet_distance_mm", ""),
-    ).ask() or defaults.get("magnet_distance_mm", "")
-
-    meta["magnet_dimensions_mm"] = questionary.text(
-        "Magnet dimensions (mm x mm x mm):",
-        default=defaults.get("magnet_dimensions_mm", ""),
-    ).ask() or defaults.get("magnet_dimensions_mm", "")
-
-    meta["magnets_in_stack"] = questionary.text(
-        "Number of magnets in stack:",
-        default=defaults.get("magnets_in_stack", ""),
-    ).ask() or defaults.get("magnets_in_stack", "")
-
+def prompt_scope_channel_labels(defaults: dict[str, str]) -> dict[str, str]:
+    labels: dict[str, str] = {}
     for ch in CHANNELS:
-        meta[f"channel_label_{ch}"] = questionary.text(
+        key = f"channel_label_{ch}"
+        labels[key] = questionary.text(
             f"Channel {ch} label:",
-            default=defaults.get(f"channel_label_{ch}", ""),
-        ).ask() or defaults.get(f"channel_label_{ch}", "")
+            default=defaults.get(key, CHANNEL_LABELS[ch]),
+        ).ask() or defaults.get(key, CHANNEL_LABELS[ch])
+    return {k: str(v).strip() for k, v in labels.items()}
 
-    return {k: str(v).strip() for k, v in meta.items()}
+
+def resolve_scope_channel_labels(defaults: dict[str, str], prompt_for_missing: bool) -> dict[str, str]:
+    if prompt_for_missing:
+        return prompt_scope_channel_labels(defaults)
+
+    labels: dict[str, str] = {}
+    for ch in CHANNELS:
+        key = f"channel_label_{ch}"
+        labels[key] = str(defaults.get(key, CHANNEL_LABELS[ch])).strip()
+    return labels
 
 
 def ask_trial_number(exp_dir: Path, default_trial: int) -> int:
@@ -328,6 +278,7 @@ def main():
     import socket
     from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
+    args = parse_args()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # ── Connect (before prompts, so a missing scope fails fast) ──────────
@@ -361,21 +312,44 @@ def main():
     previous_meta = load_previous_metadata()
     default_title = previous_meta.get("experiment_title", "")
 
-    experiment_title = ask_experiment_title(default_title)
+    experiment_title = args.experiment.strip() if args.experiment else ask_experiment_title(default_title)
     exp_dir = experiment_dir_for_title(experiment_title)
-    exp_defaults = load_experiment_metadata(exp_dir) or previous_meta
+    exp_defaults = load_experiment_profile(EXPERIMENTS_DIR, experiment_title) or previous_meta
 
-    current_meta = ask_experiment_metadata(exp_defaults)
+    manifest_defaults: dict[str, str] = {}
+    if args.experiment and args.trial is not None:
+        existing_layout = build_trial_paths(EXPERIMENTS_DIR, experiment_title, int(args.trial), create=False)
+        existing_manifest = load_trial_manifest(existing_layout["trial_manifest_path"])
+        if isinstance(existing_manifest.get("experiment_profile"), dict):
+            manifest_defaults = {
+                str(k): str(v)
+                for k, v in existing_manifest["experiment_profile"].items()
+            }
+
+    if manifest_defaults:
+        current_meta = dict(manifest_defaults)
+    elif args.experiment and args.trial is not None and exp_defaults:
+        current_meta = dict(exp_defaults)
+    else:
+        current_meta = prompt_experiment_profile(experiment_title, exp_defaults)
+
     current_meta["experiment_title"] = experiment_title
-    save_experiment_metadata(exp_dir, current_meta)
+    current_meta.update(
+        resolve_scope_channel_labels(
+            current_meta,
+            prompt_for_missing=not (args.experiment and args.trial is not None),
+        )
+    )
+    experiment_profile_path = save_experiment_profile(EXPERIMENTS_DIR, experiment_title, current_meta)
 
     existing_trials = existing_trial_numbers(exp_dir)
     default_trial = max(existing_trials) + 1 if existing_trials else 1
-    trial_number = ask_trial_number(exp_dir, default_trial)
+    trial_number = int(args.trial) if args.trial is not None else ask_trial_number(exp_dir, default_trial)
 
     layout = build_trial_paths(EXPERIMENTS_DIR, experiment_title, trial_number, create=True)
     trial_dir = layout["trial_dir"]
     micro_scope_dir = layout["micro_scope_dir"]
+    trial_manifest_path = layout["trial_manifest_path"]
     capture_dir = next_capture_dir(micro_scope_dir)
     capture_dir.mkdir(parents=True, exist_ok=True)
 
@@ -475,9 +449,10 @@ def main():
         "operator": current_meta.get("operator", ""),
         "hdf5_path": str(hdf5_path),
         "screen_png": str(screen_path) if screen_path else "",
+        "experiment_profile": current_meta,
+        "experiment_profile_path": str(experiment_profile_path),
         "layout": {
             "experiment_dir": str(exp_dir),
-            "session_dir": str(layout["session_dir"]),
             "trial_dir": str(trial_dir),
             "micro_scope_dir": str(micro_scope_dir),
             "capture_dir": str(capture_dir),
@@ -493,6 +468,44 @@ def main():
         encoding="utf-8",
     )
     print(f"✅ Trial metadata saved → {trial_meta_path}")
+
+    manifest = load_trial_manifest(trial_manifest_path)
+    streams = manifest.get("streams") if isinstance(manifest.get("streams"), dict) else {}
+    streams["rigol"] = {
+        "requested": True,
+        "enabled": True,
+        "status": "completed",
+        "files": {
+            "hdf5": str(hdf5_path),
+            "png": str(png_path),
+            "screen_png": str(screen_path) if screen_path else "",
+            "metadata": str(trial_meta_path),
+        },
+        "scope_capture_id": capture_dir.name,
+    }
+
+    requested_streams = set(manifest.get("requested_streams", []))
+    completed_streams = set(manifest.get("completed_streams", []))
+    skipped_streams = set(manifest.get("skipped_streams", []))
+    requested_streams.add("rigol")
+    completed_streams.add("rigol")
+    skipped_streams.discard("rigol")
+
+    manifest.update(
+        {
+            "experiment_title": experiment_title,
+            "trial_number": trial_number,
+            "capture_time": timestamp,
+            "experiment_profile": current_meta,
+            "experiment_profile_path": str(experiment_profile_path),
+            "requested_streams": sorted(requested_streams),
+            "completed_streams": sorted(completed_streams),
+            "skipped_streams": sorted(skipped_streams),
+            "streams": streams,
+        }
+    )
+    save_trial_manifest(trial_manifest_path, manifest)
+    print(f"✅ Trial manifest saved → {trial_manifest_path}")
 
     # ── Compute voltages for plot ─────────────
     voltages = {
@@ -521,6 +534,10 @@ def main():
         voltages    = voltages,
         title_line1 = title_line1,
         title_line2 = title_line2,
+        channel_labels = {
+            ch: current_meta.get(f"channel_label_{ch}", CHANNEL_LABELS[ch])
+            for ch in CHANNELS
+        },
         png_path    = png_path,
     )
 

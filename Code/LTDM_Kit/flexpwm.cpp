@@ -63,6 +63,8 @@ LorentzContext context = {
   .frameCount = 0
 };
 
+volatile uint16_t g_lastOutputPWMVal = 0;
+
 void flexpwm_sm1_isr() {
   //\\ SENSE STAGE //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
   FLEXPWM2_SM1STS = (1 << 12);  // Writing 1 to bit 12 clears the VAL0 interrupt flag
@@ -97,16 +99,16 @@ void flexpwm_sm1_isr() {
   // Using "FLEXPWM2_SM2VAL1*0.35f" is deciding that 35% duty cycle is the MAX duty cycle of an actuate pulse
   //CH1
   if (context.ch[0].out > 0) {
-    FLEXPWM2_SM2VAL3 = FLEXPWM2_SM2VAL4 + fabs(context.ch[0].out)*(FLEXPWM2_SM2VAL1*0.35f);
+    FLEXPWM2_SM2VAL3 = FLEXPWM2_SM2VAL4 + fabs(context.ch[0].out)*(FLEXPWM2_SM2VAL1*MaxDutyCh1);
     FLEXPWM2_SM2VAL5 = FLEXPWM2_SM2VAL4;
   } else if (context.ch[0].out < 0) {
     FLEXPWM2_SM2VAL3 = FLEXPWM2_SM2VAL4;
-    FLEXPWM2_SM2VAL5 = FLEXPWM2_SM2VAL4 + fabs(context.ch[0].out)*(FLEXPWM2_SM2VAL1*0.35f);
+    FLEXPWM2_SM2VAL5 = FLEXPWM2_SM2VAL4 + fabs(context.ch[0].out)*(FLEXPWM2_SM2VAL1*MaxDutyCh1);
   }
 
   //CH2 -- LED only, so no longer capable of negative pulse 
   if (context.ch[1].out > 0) {
-    FLEXPWM2_SM3VAL3 = FLEXPWM2_SM2VAL4 + fabs(context.ch[1].out)*(FLEXPWM2_SM2VAL1*1.0f);
+    FLEXPWM2_SM3VAL3 = FLEXPWM2_SM2VAL4 + fabs(context.ch[1].out)*(FLEXPWM2_SM2VAL1*MaxDutyCh2);
     FLEXPWM2_SM3VAL5 = FLEXPWM2_SM2VAL4;
   } else if (context.ch[1].out <= 0) {
     FLEXPWM2_SM3VAL3 = FLEXPWM2_SM2VAL4;
@@ -137,6 +139,7 @@ void flexpwm_sm1_isr() {
 }
 
 void setOutputPWM(uint16_t val) {
+  g_lastOutputPWMVal = val;
   uint32_t PeriodDurCycles = FLEXPWM2_SM2VAL1; // Defines the period length
   uint32_t Cycles = ((uint32_t)val * (PeriodDurCycles + 1)) >> ResolutionPWM;
   if(Cycles > PeriodDurCycles) Cycles = PeriodDurCycles;
@@ -161,29 +164,29 @@ void setOutputPWM(uint16_t val) {
   // VAL5 = falling edge of B
 
   // EDGE-ALIGN ALL SUBMODULES
-  FLEXPWM2_SM0VAL0 = 0;
-  FLEXPWM2_SM1VAL0 = 0;
-  FLEXPWM2_SM2VAL0 = 0;
-  FLEXPWM2_SM3VAL0 = 0;
+  FLEXPWM2_SM0VAL0 = 0; // alt SENSE pulse
+  FLEXPWM2_SM1VAL0 = 0; // main SENSE pulse
+  FLEXPWM2_SM2VAL0 = 0; // CH1 ACTUATE
+  FLEXPWM2_SM3VAL0 = 0; // CH2 ACTUATE
 
   // SENSE pins
   // FLEXPWM2_SM1VAL2 = 0? // SENSE adjust RISING edge (DO NOT ADJUST :)
-  FLEXPWM2_SM1VAL3 = Cycles*1.5; // SENSE adjust falling edge
-  FLEXPWM2_SM0VAL3 = Cycles*3.0; // SENSE ALT adjusting falling edge
+  FLEXPWM2_SM1VAL3 = Cycles*1.5; // SENSE MAIN - adjust falling edge
+  FLEXPWM2_SM0VAL3 = Cycles*2.0; // SENSE ALT - adjust falling edge
 
   //CH1 ACTUATE
-  // P
+  // PMOS
   FLEXPWM2_SM2VAL2 = FLEXPWM2_SM1VAL3 + Cycles;         // RISING EDGE
   FLEXPWM2_SM2VAL3 = FLEXPWM2_SM1VAL3 + (Cycles) * 4.0; // FALLING EDGE
-  // N
+  // NMOS
   FLEXPWM2_SM2VAL4 = FLEXPWM2_SM1VAL3 + Cycles;         // RISING EDGE
   FLEXPWM2_SM2VAL5 = FLEXPWM2_SM1VAL3 + (Cycles) * 4.0; // FALLING EDGE
 
   // CH2 ACTUATE
-  // P
+  // PMOS
   FLEXPWM2_SM3VAL2 = FLEXPWM2_SM1VAL3 + Cycles;         // RISING EDGE
   FLEXPWM2_SM3VAL3 = FLEXPWM2_SM1VAL3 + (Cycles) * 4.0; // FALLING EDGE
-  // N
+  // NMOS
   FLEXPWM2_SM3VAL4 = FLEXPWM2_SM1VAL3 + Cycles;         // RISING EDGE
   FLEXPWM2_SM3VAL5 = FLEXPWM2_SM1VAL3 + (Cycles) * 4.0; // FALLING EDGE
 

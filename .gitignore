@@ -10,6 +10,9 @@ Code/Python/Python2Audacity.aup3
 Code/Python/Python2Audacity.aup3-shm
 Code/Python/Python2Audacity.aup3-wal
 Code/Python/audacity_recordings/
+Code/Python/experiments/**/orchestration/*.aup3
+Code/Python/experiments/**/orchestration/*.aup3-shm
+Code/Python/experiments/**/orchestration/*.aup3-wal
 
 # Generated LTDM/Rigol experiment capture data
 # Keep code and docs; ignore heavy trial outputs only.

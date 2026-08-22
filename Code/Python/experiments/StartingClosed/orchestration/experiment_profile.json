@@ -1,0 +1,18 @@
+{
+  "operator": "adamschmidt",
+  "description": "",
+  "string_material": "",
+  "speaking_length_cm": "",
+  "string_gauge_mm": "",
+  "string_resistance_ohm": "",
+  "string_fundamental_hz": "",
+  "magnet_grade": "",
+  "magnet_pull_strength_kg": "",
+  "magnet_position_cm": "",
+  "magnet_distance_mm": "",
+  "magnet_dimensions_mm": "",
+  "magnets_in_stack": "",
+  "experiment_title": "StartingClosed",
+  "profile_format_version": "1",
+  "updated_at": "2026-08-22T02:54:29.687496"
+}

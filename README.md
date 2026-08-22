@@ -194,7 +194,8 @@ When override is active, incoming values are written directly into the shared UI
 The Python tools in `Code/Python` are used for measurement, capture automation, and analysis around the firmware:
 
 - `capture_teensy_plus_interface.py`: Capture audio directly from Teensy (what the teensy 'hears' from the EMF sensing circuitry) and 2 channels of audio from a connected audio interface. Optionally import these files directly to audacity.
-- `run_capture_trial_prompt.py`: Prompt for trial/duration and launch the full capture pipeline with known-good defaults.
+- `run_trial.py`: Prompt for trial/profile/duration and launch the capture workflow via named profiles.
+- `repo_hygiene_check.py`: Check for tracked generated artefacts and duplicate Python readme naming.
 - `capture_teensy_stream.py`: Capture Teensy stream only (without interface capture), with optional WAV export.
 - `rigol_capture.py`: Run Rigol DS1054Z waveform/screenshot capture and write trial metadata.
 - `load_rigol_capture.py`: Load and interactively inspect saved Rigol capture files.
@@ -203,10 +204,10 @@ The Python tools in `Code/Python` are used for measurement, capture automation, 
 
 If you are starting from scratch, run this script first:
 
-- `Code/Python/run_capture_trial_prompt.py`
+- `Code/Python/run_trial.py`
 
 It prompts for trial and duration, auto-suggests the next trial number, and launches the full capture pipeline with known-good defaults.
 
 Full Python docs:
 
-- `Code/Python/PYTHONS_README.md`
+- `Code/Python/PYTHON_README.md`

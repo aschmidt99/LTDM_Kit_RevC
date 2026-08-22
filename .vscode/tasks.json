@@ -82,11 +82,11 @@
       "problemMatcher": []
     },
     {
-      "label": "Python: Capture Teensy+Interface (prompt trial/duration)",
+      "label": "Python: Capture Teensy+Interface (prompt trial/profile/duration)",
       "type": "shell",
       "command": "python3",
       "args": [
-        "run_capture_trial_prompt.py"
+        "run_trial.py"
       ],
       "options": {
         "cwd": "${workspaceFolder}/Code/Python"

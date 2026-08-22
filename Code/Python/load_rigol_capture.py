@@ -115,7 +115,7 @@ def main():
 
     # ── Group by experiment (top-level folder under experiments/) ────────
     # Path structure:
-    #   experiments/<exp>/sessions/<date>_sessionN/trials/trial_NNNN/
+    #   experiments/<exp>/trials/trial_NNNN/
     #       micro_scope/capture_NNN/rigol_capture.h5
     def experiment_name(h5: Path) -> str:
         try:
@@ -139,10 +139,9 @@ def main():
     # ── Build labelled choices for the selected experiment ────────────────
     def capture_label(h5: Path) -> str:
         parts = h5.relative_to(EXPERIMENTS_DIR).parts
-        # parts: exp / sessions / <session> / trials / <trial> / micro_scope / <capture> / rigol_capture.h5
-        trial_part   = parts[4] if len(parts) > 4 else "?"
-        capture_part = parts[6] if len(parts) > 6 else "?"
-        session_part = parts[2] if len(parts) > 2 else "?"
+        # parts: exp / trials / <trial> / micro_scope / <capture> / rigol_capture.h5
+        trial_part   = parts[2] if len(parts) > 2 else "?"
+        capture_part = parts[4] if len(parts) > 4 else "?"
 
         meta_path = h5.parent / TRIAL_META_NAME
         description = ""
@@ -155,7 +154,7 @@ def main():
             except Exception:
                 pass
 
-        label = f"{trial_part} / {capture_part}  [{session_part}]"
+        label = f"{trial_part} / {capture_part}"
         if capture_time:
             label += f"  {capture_time}"
         if description:
@@ -199,6 +198,7 @@ def main():
     exp_title    = metadata.get("experiment_title", chosen_exp)
     description  = metadata.get("description", "")
     capture_time = metadata.get("capture_time", filename.stem)
+    channel_labels = parse_channel_labels(metadata.get("channel_labels", ""))
 
     title_line1 = f"{exp_title}  [{filename.parent.name}]"
     title_line2 = description if description else str(capture_time)
@@ -210,6 +210,7 @@ def main():
         voltages    = voltages,
         title_line1 = title_line1,
         title_line2 = title_line2,
+        channel_labels = channel_labels,
         png_path    = None,
     )
 

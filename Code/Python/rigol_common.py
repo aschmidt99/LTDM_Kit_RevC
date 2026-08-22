@@ -153,6 +153,7 @@ def make_scope_plot(time_axes: dict,
                     voltages: dict,
                     title_line1: str,
                     title_line2: str,
+                    channel_labels: dict | None = None,
                     png_path: str | None = None) -> None:
     """
     Plots all 4 channels with min/max envelope decimation.
@@ -169,6 +170,7 @@ def make_scope_plot(time_axes: dict,
     voltages    : dict  ch → float64 voltage array
     title_line1 : first title line (e.g. capture mode/source)
     title_line2 : second title line (e.g. timestamp/filename)
+    channel_labels : optional dict ch → label override for legend text
     png_path    : if provided, saves PNG before showing
     """
     fig, ax = plt.subplots(figsize=(14, 6))
@@ -181,6 +183,11 @@ def make_scope_plot(time_axes: dict,
     for ch in CHANNELS:
         t_ms = time_axes[ch] * 1e3
         v    = voltages[ch]
+        legend_label = CHANNEL_LABELS[ch]
+        if isinstance(channel_labels, dict):
+            custom = str(channel_labels.get(ch, "")).strip()
+            if custom:
+                legend_label = custom
 
         if len(t_ms) > RENDER_POINTS:
             t_d, v_d = minmax_decimate(t_ms, v, RENDER_POINTS)
@@ -192,7 +199,7 @@ def make_scope_plot(time_axes: dict,
             t_d, v_d,
             color=CHANNEL_COLORS[ch],
             linewidth=0.7,
-            label=CHANNEL_LABELS[ch],
+            label=legend_label,
             alpha=0.92,
             marker="None",
         )

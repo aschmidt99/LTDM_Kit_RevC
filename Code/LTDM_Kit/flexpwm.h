@@ -50,6 +50,7 @@ extern int noise;
 extern int deadZone;
 extern volatile int count;
 extern int maxPulseLength;
+extern volatile uint16_t g_lastOutputPWMVal;
 
 void initADC();
 void initFlexPWM();
