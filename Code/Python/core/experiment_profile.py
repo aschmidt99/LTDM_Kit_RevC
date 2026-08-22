@@ -5,7 +5,7 @@ import getpass
 import json
 from pathlib import Path
 
-from path_layout import build_experiment_paths
+from core.path_layout import build_experiment_paths
 
 
 EXPERIMENT_PROFILE_NAME = "experiment_profile.json"

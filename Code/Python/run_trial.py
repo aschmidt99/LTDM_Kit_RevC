@@ -8,13 +8,15 @@ import sys
 import textwrap
 from pathlib import Path
 
-from experiment_profile import load_experiment_profile, save_experiment_profile
-from path_layout import build_experiment_paths, existing_trial_numbers
+from core.experiment_profile import load_experiment_profile, save_experiment_profile
+from core.path_layout import build_experiment_paths, existing_trial_numbers
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = str(BASE_DIR / "experiments")
-CAPTURE_SCRIPT = BASE_DIR / "capture_teensy_plus_interface.py"
-RIGOL_SCRIPT = BASE_DIR / "rigol_capture.py"
+CAPTURE_SCRIPT = BASE_DIR / "capture" / "teensy_plus_interface.py"
+RIGOL_SCRIPT = BASE_DIR / "rigol" / "capture.py"
+CAPTURE_MODULE = "capture.teensy_plus_interface"
+RIGOL_MODULE = "rigol.capture"
 STATE_FILENAME = "audacity_timeline_state.json"
 
 DEFAULT_PORT = "/dev/cu.usbmodem199934501"
@@ -354,7 +356,8 @@ def build_capture_command(
 ) -> list[str]:
     cmd = [
         sys.executable,
-        str(CAPTURE_SCRIPT),
+        "-m",
+        CAPTURE_MODULE,
         "--port",
         DEFAULT_PORT,
         "--output-dir",
@@ -424,7 +427,8 @@ def build_capture_command(
 def build_rigol_command(experiment: str, trial: int) -> list[str]:
     return [
         sys.executable,
-        str(RIGOL_SCRIPT),
+        "-m",
+        RIGOL_MODULE,
         "--experiment",
         experiment,
         "--trial",

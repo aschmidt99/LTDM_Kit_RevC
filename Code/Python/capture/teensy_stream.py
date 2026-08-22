@@ -5,9 +5,9 @@ import time
 from pathlib import Path
 from datetime import datetime
 import json
-from experiment_profile import ensure_experiment_profile
-from path_layout import build_trial_paths
-from trial_metadata_v2 import (
+from core.experiment_profile import ensure_experiment_profile
+from core.path_layout import build_trial_paths
+from core.trial_metadata import (
     infer_trial_status,
     iso_timestamps_pair,
     normalise_controls,
@@ -355,7 +355,7 @@ def main():
                 "requested": False,
                 "enabled": False,
                 "status": "skipped",
-                "reason": "not captured by capture_teensy_stream.py",
+                "reason": "not captured by capture/teensy_stream.py",
             },
         },
         "completed_streams": ["teensy"],

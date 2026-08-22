@@ -5,11 +5,43 @@ This folder contains two main workflows:
 - LTDM Teensy + audio-interface capture, with optional Audacity timeline automation.
 - Rigol DS1054Z data capture and review.
 
+## Quick Start
+
+Run an interactive trial:
+
+```bash
+cd Code/Python
+python3 run_trial.py
+```
+
+Run a non-interactive trial:
+
+```bash
+cd Code/Python
+python3 run_trial.py --experiment TeensyCapture --trial 1 --profile teensy_interface_no_audacity --duration 5
+```
+
+Run Teensy-only capture:
+
+```bash
+cd Code/Python
+python3 -m capture.teensy_stream --port /dev/cu.usbmodem199934501 --trial 1 --duration 5 --save-wav
+```
+
+## Folder Map
+
+- `capture/`: Teensy and interface capture implementations.
+- `rigol/`: Rigol capture, scope screen, and shared Rigol plotting helpers.
+- `core/`: Shared path, profile, and metadata normalisation helpers.
+- `analysis/`: Post-capture plotting/inspection tools.
+- `docs/`: Python-side technical schema/reference docs.
+- `run_trial.py` remains the top-level interactive launcher.
+
 ## Metadata Schema
 
 Schema design is fixed in:
 
-- `trial_metadata_schema_v2.md`
+- `docs/trial_metadata_schema_v2.md`
 
 This schema is the canonical contract for trial metadata before true acquisition begins.
 It defines:
@@ -36,7 +68,7 @@ For each experiment, automation uses `orchestration/<experiment_name>.aup3`: it 
 Follow-up trials default to append mode and skip explicit project reopening to avoid "already open in another window" errors; rebuild mode is only forced when track count is successfully queried and is below the required base tracks.
 If Audacity is not running, automation fails fast with a recorded lifecycle error rather than hanging on script-pipe open.
 To reduce post-import/save instability, additional padding is available with `--audacity-pre-save-delay` and `--audacity-post-save-delay`.
-When using `run_trial.py`, these delay flags are forwarded automatically to `capture_teensy_plus_interface.py`.
+When using `run_trial.py`, these delay flags are forwarded automatically to `capture.teensy_plus_interface`.
 
 Repository hygiene and workflow stability includes two safeguards:
 
@@ -45,36 +77,36 @@ Repository hygiene and workflow stability includes two safeguards:
 
 ## Folder Highlights
 
-- `capture_teensy_plus_interface.py`: primary capture pipeline (Teensy + interface + Audacity import).
+- `capture/teensy_plus_interface.py`: primary capture pipeline (Teensy + interface + Audacity import).
 - `run_trial.py`: interactive trial runner using named capture profiles.
-- `capture_teensy_stream.py`: Teensy-only binary/WAV capture.
-- `rigol_capture.py`: full 4-channel DS1054Z RAW capture to HDF5 + PNG + metadata.
-- `load_rigol_capture.py`: browse and plot saved Rigol captures.
-- `experiment_profile.py`: shared experiment-level metadata loader/prompt/save helper.
-- `rigol_screen.py`: capture scope screen PNG or convert saved raw screen bytes.
-- `plot_teensy_stream.py`: quick matplotlib plot of Teensy `.bin` streams.
-- `rigol_common.py`: shared Rigol constants/helpers/plot logic.
+- `capture/teensy_stream.py`: Teensy-only binary/WAV capture.
+- `rigol/capture.py`: full 4-channel DS1054Z RAW capture to HDF5 + PNG + metadata.
+- `rigol/load_capture.py`: browse and plot saved Rigol captures.
+- `core/experiment_profile.py`: shared experiment-level metadata loader/prompt/save helper.
+- `rigol/screen.py`: capture scope screen PNG or convert saved raw screen bytes.
+- `analysis/plot_teensy_stream.py`: quick matplotlib plot of Teensy `.bin` streams.
+- `rigol/common.py`: shared Rigol constants/helpers/plot logic.
 
 ## Workflow Diagram
 
 ```mermaid
 flowchart TD
   T[VS Code Task:\nPython Capture Teensy+Interface] --> P[run_trial.py]
-  P --> CPI[capture_teensy_plus_interface.py]
+  P --> CPI[capture.teensy_plus_interface]
   CPI --> TS[(Teensy Serial Stream)]
   CPI --> IF[(Audio Interface Capture)]
   CPI --> AU[(Audacity import/update optional)]
   CPI --> EXP[(experiments/ output)]
 
-  U1[Manual run] --> CTS[capture_teensy_stream.py]
+  U1[Manual run] --> CTS[capture.teensy_stream]
   CTS --> EXP
 
-  U2[Manual run] --> RIG[rigol_capture.py]
-  RIG --> RC[rigol_common.py]
-  RIG --> RS[rigol_screen.py]
+  U2[Manual run] --> RIG[rigol.capture]
+  RIG --> RC[rigol.common]
+  RIG --> RS[rigol.screen]
   RIG --> EXP
 
-  U3[Manual run] --> LRC[load_rigol_capture.py]
+  U3[Manual run] --> LRC[rigol.load_capture]
   LRC --> RC
   LRC --> EXP
 ```
@@ -101,7 +133,7 @@ For this repo, use the project virtual environment interpreter directly:
 
 ```bash
 cd Code/Python
-../../.venv/bin/python rigol_capture.py
+../../.venv/bin/python -m rigol.capture
 ```
 
 If needed, reinstall the plotting stack into that same interpreter:
@@ -128,7 +160,7 @@ This task runs `run_trial.py`, which:
 - Accepts `--duration` as an override for a specific run.
 - For trial 2+, shows “Change user-reported variable?” with an arrow-navigable field list (current values shown) and saves any edits before capture.
 - Prompts once for experiment metadata if `orchestration/experiment_profile.json` does not yet exist.
-- Launches `capture_teensy_plus_interface.py` with project defaults.
+- Launches `capture.teensy_plus_interface` with project defaults.
 
 ### Capture Profiles
 
@@ -144,7 +176,7 @@ This task runs `run_trial.py`, which:
 
 ```bash
 cd Code/Python
-python3 capture_teensy_plus_interface.py \
+python3 -m capture.teensy_plus_interface \
   --port /dev/cu.usbmodem199934501 \
   --trial 7 \
   --duration 3 \
@@ -167,7 +199,7 @@ Audio + Rigol in one run:
 
 ```bash
 cd Code/Python
-python3 capture_teensy_plus_interface.py \
+python3 -m capture.teensy_plus_interface \
   --port /dev/cu.usbmodem199934501 \
   --trial 7 \
   --duration 3 \
@@ -185,23 +217,77 @@ python3 capture_teensy_plus_interface.py \
 
 ## Script Reference
 
-## 1) `capture_teensy_plus_interface.py`
+1. `run_trial.py`
+Purpose: interactive daily launcher (experiment/trial/profile prompts, duration defaults, metadata edits for follow-up trials).
+Run:
 
-Primary synchronized capture script.
+```bash
+cd Code/Python
+python3 run_trial.py
+```
 
-What it does:
-- Arms Teensy and captures serial stream (2ch).
-- Parses `@TLM1` telemetry frames between `ARMED` and marker (`0xAA55`) and stores the `arm_snapshot` payload.
-- Uses firmware-reported samplerate when present, with Python fallback to 20 kHz.
-- Captures interface audio (multi-channel, typically 2ch at 192 kHz).
-- Optionally auto-aligns interface to Teensy via envelope correlation.
-- Optionally trims interface exactly to Teensy duration.
-- Loads shared experiment metadata from `orchestration/experiment_profile.json` and stores a trial snapshot.
-- Writes per-trial WAVs + metadata JSON.
-- Can optionally launch Rigol capture for the same experiment/trial after audio files are saved.
-- Optionally imports/appends clips to 4 fixed Audacity tracks.
+2. `capture/teensy_plus_interface.py`
+Purpose: main synchronized capture path (Teensy + interface + optional Audacity + optional post-Rigol).
+Run:
 
-Key outputs per trial:
+```bash
+cd Code/Python
+python3 -m capture.teensy_plus_interface --help
+```
+
+Key flags: `--iface-list-devices`, `--iface-start-mode`, `--iface-auto-align`, `--iface-trim-to-teensy`, `--audacity-import`, `--audacity-reset-timeline`, `--post-rigol`, `--debug`.
+
+3. `capture/teensy_stream.py`
+Purpose: Teensy-only capture, with optional WAV output.
+Run:
+
+```bash
+cd Code/Python
+python3 -m capture.teensy_stream --port /dev/cu.usbmodem199934501 --trial 1 --duration 5 --save-wav
+```
+
+4. `analysis/plot_teensy_stream.py`
+Purpose: quick viewer for Teensy `.bin` streams.
+Run:
+
+```bash
+cd Code/Python
+python3 -m analysis.plot_teensy_stream experiments/TeensyCapture/trials/trial_0001/macro_audio/teensy_stream.bin --duration 1.0 --channel 1
+```
+
+5. `rigol/capture.py`
+Purpose: DS1054Z RAW capture (HDF5 + PNG + scope metadata) attached to experiment/trial.
+Run:
+
+```bash
+cd Code/Python
+python3 -m rigol.capture
+python3 -m rigol.capture --experiment MyFirstExperiment --trial 1
+```
+
+6. `rigol/load_capture.py`
+Purpose: interactive loader/plotter for previous Rigol captures.
+Run:
+
+```bash
+cd Code/Python
+python3 -m rigol.load_capture
+```
+
+7. `rigol/screen.py`
+Purpose: scope screen capture and `.bin` to `.png` conversion.
+Run:
+
+```bash
+cd Code/Python
+python3 -m rigol.screen --ip 169.254.123.183 --out rigol_screen.png
+python3 -m rigol.screen --bin 20260811_rigol_screen.bin
+```
+
+8. `rigol/common.py` (internal shared module)
+Purpose: `SCOPE_IP`, channel labels/colours, conversion helpers, and scope-style plotting utilities used by Rigol tools.
+
+Primary per-trial outputs from the main capture path:
 - `trials/trial_####/macro_audio/teensy_stream.bin`
 - `trials/trial_####/macro_audio/teensy_stream_Ch1.wav`
 - `trials/trial_####/macro_audio/teensy_stream_ch2.wav`
@@ -210,137 +296,6 @@ Key outputs per trial:
 - `trials/trial_####/trial_audio_capture_metadata.json`
 - `trials/trial_####/trial_metadata_v2.json`
 - `trials/trial_####/trial_manifest.json`
-
-Useful flags:
-- `--iface-list-devices`
-- `--iface-start-mode marker|arm|arm-gated`
-- `--iface-auto-align` / `--iface-no-auto-align`
-- `--iface-trim-to-teensy` / `--iface-no-trim-to-teensy`
-- `--audacity-import` / `--no-audacity-import`
-- `--audacity-reset-timeline`
-- `--post-rigol`
-- `--debug`
-
-## 2) `run_trial.py`
-
-Interactive launcher for the main capture script.
-
-What it does:
-- Reads prior timeline state.
-- Proposes auto-incremented trial.
-- Prompts experiment + trial + profile in terminal.
-- Uses `duration_seconds` from experiment metadata for non-`rigol_only` profiles, unless `--duration` is provided.
-- For trial 2+, prompts to edit user-reported metadata fields (including duration) before the run.
-- Supports `--profile`, `--duration` override, and `--debug`.
-- Runs the full capture command with known-good defaults.
-
-Run:
-
-```bash
-cd Code/Python
-python3 run_trial.py
-```
-
-## 3) `capture_teensy_stream.py`
-
-Teensy-only capture utility.
-
-What it does:
-- Arms Teensy and waits for capture marker.
-- Parses `@TLM1` telemetry frames after `ARMED` and before marker.
-- Captures binary stream for requested duration.
-- Teensy capture duration range is 1 to 120 seconds.
-- Uses firmware-reported samplerate for byte-count and WAV sample-rate when available.
-- Loads shared experiment metadata from `orchestration/experiment_profile.json` and stores a trial snapshot.
-- Saves raw channel splits, optional WAVs, and `trial_metadata_v2.json`.
-
-Run example:
-
-```bash
-cd Code/Python
-python3 capture_teensy_stream.py \
-  --port /dev/cu.usbmodem199934501 \
-  --trial 1 \
-  --duration 5 \
-  --save-wav
-```
-
-## 4) `plot_teensy_stream.py`
-
-Quick waveform viewer for Teensy `.bin` captures.
-
-Run example:
-
-```bash
-cd Code/Python
-  python3 plot_teensy_stream.py experiments/TeensyCapture/trials/trial_0001/macro_audio/teensy_stream.bin --duration 1.0 --channel 1
-```
-
-## 5) `rigol_capture.py`
-
-Interactive DS1054Z RAW waveform capture.
-
-What it does:
-- Loads or updates shared experiment metadata in `orchestration/experiment_profile.json`.
-- Prompts for channel labels only during scope capture, since they are scope-specific.
-- Connects to Rigol via LAN/VXI-11 using `SCOPE_IP` from `rigol_common.py`.
-- Captures scope screen.
-- Stops scope if needed.
-- Reads 6M-point RAW data for all 4 channels.
-- Saves HDF5 + scope metadata + rendered PNG under the corresponding trial's `micro_scope/capture_###` folder and updates `trial_manifest.json`.
-
-Run:
-
-```bash
-cd Code/Python
-python3 rigol_capture.py
-```
-
-Attach Rigol to an existing experiment/trial without re-entering them:
-
-```bash
-cd Code/Python
-python3 rigol_capture.py --experiment MyFirstExperiment --trial 1
-```
-
-## 6) `load_rigol_capture.py`
-
-Interactive loader/viewer for prior Rigol captures.
-
-Run:
-
-```bash
-cd Code/Python
-python3 load_rigol_capture.py
-```
-
-## 7) `rigol_screen.py`
-
-Screen capture/conversion helper.
-
-Live capture:
-
-```bash
-cd Code/Python
-python3 rigol_screen.py --ip 169.254.123.183 --out rigol_screen.png
-```
-
-Convert existing raw screen file:
-
-```bash
-cd Code/Python
-python3 rigol_screen.py --bin 20260811_rigol_screen.bin
-```
-
-## 8) `rigol_common.py`
-
-Shared module used by Rigol scripts.
-
-Contains:
-- `SCOPE_IP`
-- Channel mappings/colors
-- RAW count to voltage conversion
-- Scope-style plotting + zoom/decimation behavior
 
 ## Data Layout
 
@@ -378,18 +333,13 @@ Code/Python/experiments/
 ## Troubleshooting
 
 Audacity import does not work:
-- Confirm Audacity is open.
-- Confirm mod-script-pipe is enabled.
-- Confirm pipe files exist at `/tmp/audacity_script_pipe.to.<uid>` and `/tmp/audacity_script_pipe.from.<uid>`.
+- Open Audacity first, enable mod-script-pipe, then verify both pipes exist: `/tmp/audacity_script_pipe.to.<uid>` and `/tmp/audacity_script_pipe.from.<uid>`.
 
 No interface input:
-- Run `capture_teensy_plus_interface.py --iface-list-devices`.
-- Verify `--iface-device` index/name.
-- Check macOS microphone permissions.
+- List devices with `python3 -m capture.teensy_plus_interface --iface-list-devices`, then set `--iface-device` and check macOS microphone permissions.
 
 Rigol connection fails:
-- Verify scope IP in `rigol_common.py`.
-- Confirm LAN link and that scope responds on VXI-11.
+- Confirm `SCOPE_IP` in `rigol/common.py`, verify LAN link, and confirm the scope is reachable on VXI-11.
 
 ## Quick Sanity Checks
 
@@ -397,7 +347,7 @@ Compile scripts:
 
 ```bash
 cd Code/Python
-python3 -m py_compile capture_teensy_plus_interface.py run_trial.py
+python3 -m py_compile run_trial.py capture/teensy_plus_interface.py capture/teensy_stream.py rigol/capture.py rigol/load_capture.py rigol/common.py rigol/screen.py core/experiment_profile.py core/path_layout.py core/trial_metadata.py analysis/plot_teensy_stream.py
 ```
 
 Run one prompted trial:

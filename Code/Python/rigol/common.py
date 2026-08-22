@@ -14,7 +14,7 @@ import matplotlib.ticker as ticker
 # SHARED CONFIGURATION
 # ─────────────────────────────────────────────
 SCOPE_IP = "169.254.123.183"
-from rigol_screen import save_screen
+from rigol.screen import save_screen
 
 CHANNELS = ["CHAN1", "CHAN2", "CHAN3", "CHAN4"]
 

@@ -8,9 +8,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import serial
-from experiment_profile import ensure_experiment_profile, ensure_scope_channel_labels
-from path_layout import build_trial_paths
-from trial_metadata_v2 import (
+from core.experiment_profile import ensure_experiment_profile, ensure_scope_channel_labels
+from core.path_layout import build_trial_paths
+from core.trial_metadata import (
     infer_trial_status,
     iso_timestamps_pair,
     normalise_controls,
@@ -49,13 +49,14 @@ def write_trial_manifest(manifest_path: Path, manifest: dict) -> None:
 
 
 def run_post_rigol_capture(experiment: str, trial: int) -> None:
-    rigol_script = Path(__file__).with_name("rigol_capture.py")
+    rigol_script = Path(__file__).resolve().parents[1] / "rigol" / "capture.py"
     if not rigol_script.exists():
         raise SystemExit(f"Rigol capture script not found: {rigol_script}")
 
     cmd = [
         os.sys.executable,
-        str(rigol_script),
+        "-m",
+        "rigol.capture",
         "--experiment",
         experiment,
         "--trial",
@@ -454,7 +455,7 @@ def parse_args():
     parser.add_argument(
         "--post-rigol",
         action="store_true",
-        help="Run rigol_capture.py for the same experiment/trial after audio capture files are saved.",
+        help="Run rigol/capture.py for the same experiment/trial after audio capture files are saved.",
     )
     parser.add_argument(
         "--debug",

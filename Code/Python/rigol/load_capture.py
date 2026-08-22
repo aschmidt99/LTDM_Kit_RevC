@@ -18,7 +18,7 @@ import numpy as np
 from pathlib import Path
 import questionary
 
-from rigol_common import (
+from rigol.common import (
     CHANNELS,
     counts_to_voltage,
     build_time_axis,

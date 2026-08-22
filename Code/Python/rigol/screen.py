@@ -5,7 +5,7 @@ Captures the Rigol DS1054Z screen display and saves it as a PNG.
 Can be imported by other scripts or run standalone.
 
 Usage (imported):
-    from rigol_screen import save_screen
+    from rigol.screen import save_screen
     path = save_screen(scope, "my_screen.png")
 
 Usage (standalone):
@@ -153,8 +153,8 @@ def main():
     if args.ip is None:
         # Fall back to shared config IP
         try:
-            from rigol_common import SCOPE_IP
-            print(f"No --ip given — using SCOPE_IP from rigol_common.py: {SCOPE_IP}")
+            from rigol.common import SCOPE_IP
+            print(f"No --ip given — using SCOPE_IP from rigol/common.py: {SCOPE_IP}")
             args.ip = SCOPE_IP
         except ImportError:
             # rigol_common not available — try .bin conversion instead
@@ -168,7 +168,7 @@ def main():
                 convert_bin_to_png(bins[0])
             else:
                 print("No --ip or --bin provided and no .bin files found.")
-                print("Set SCOPE_IP in rigol_common.py or use --ip 169.254.x.x")
+                print("Set SCOPE_IP in rigol/common.py or use --ip 169.254.x.x")
             return
 
     try:

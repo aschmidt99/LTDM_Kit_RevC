@@ -2,7 +2,7 @@
 .DS_Store
 
 # Local-only experiment and DAW project workspaces
-Code/Python/experiments/
+Code/Python/experiments/**
 **/*.aup3
 **/*.aup3-shm
 **/*.aup3-wal

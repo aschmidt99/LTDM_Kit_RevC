@@ -15,7 +15,7 @@ Requirements:
 """
 
 from ds1054z import DS1054Z
-from rigol_common import (
+from rigol.common import (
     CHANNELS, CHANNEL_LABELS,
     counts_to_voltage, build_time_axis,
     make_scope_plot,
@@ -28,18 +28,18 @@ import numpy as np
 import h5py
 from datetime import datetime
 from pathlib import Path
-from experiment_profile import load_experiment_profile, prompt_experiment_profile, save_experiment_profile
-from rigol_screen import save_screen
+from core.experiment_profile import load_experiment_profile, prompt_experiment_profile, save_experiment_profile
+from rigol.screen import save_screen
 import questionary
 import sys
 import time
-from path_layout import build_trial_paths, existing_trial_numbers as list_existing_trials, next_capture_dir, safe_name
+from core.path_layout import build_trial_paths, existing_trial_numbers as list_existing_trials, next_capture_dir, safe_name
 
 # ─────────────────────────────────────────────
 # CONFIGURATION
 # ─────────────────────────────────────────────
 
-from rigol_common import SCOPE_IP
+from rigol.common import SCOPE_IP
 OUTPUT_HDF5 = "rigol_capture.h5"
 OUTPUT_PNG  = "rigol_capture.png"
 SCREEN_PNG  = "rigol_screen.png"

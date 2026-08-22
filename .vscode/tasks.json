@@ -55,7 +55,8 @@
       "type": "shell",
       "command": "python3",
       "args": [
-        "capture_teensy_stream.py",
+        "-m",
+        "capture.teensy_stream",
         "--port",
         "/dev/cu.usbmodem199934501",
         "--save-wav"
