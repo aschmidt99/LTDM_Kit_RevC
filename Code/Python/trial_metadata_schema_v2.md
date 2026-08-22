@@ -340,17 +340,3 @@ Trial failure policy:
     "operator": "adamschmidt"
   }
 }
-
-## Phase 1 Acceptance Checklist
-- Schema keys, types, and enums are fixed.
-- Authority precedence is fixed.
-- Failure semantics are fixed.
-- Relative-path policy is fixed.
-- Assignment uncertainty policy is fixed (N/A allowed).
-- FlexPWM TDM timing metadata and conversion table rules are fixed.
-- Backward compatibility requirement is explicitly not required.
-- Ready to begin Phase 2 firmware telemetry contract.
-
-## Phase 2 Contract Reference
-Firmware telemetry wire contract draft:
-- `../LTDM_Kit/firmware_telemetry_contract_v1.md`

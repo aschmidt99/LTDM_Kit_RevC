@@ -5,9 +5,9 @@ This folder contains two main workflows:
 - LTDM Teensy + audio-interface capture, with optional Audacity timeline automation.
 - Rigol DS1054Z data capture and review.
 
-## Metadata Schema (Phase 1)
+## Metadata Schema
 
-Phase 1 schema design is now fixed in:
+Schema design is fixed in:
 
 - `trial_metadata_schema_v2.md`
 
@@ -22,33 +22,26 @@ It defines:
 - Assignment map policy (including explicit `N/A` for unassigned controls).
 - Required FlexPWM TDM timing metadata using meaningful labels (for example sample period, main sense pulse end, alt sense pulse start/end, actuation pulse start) with time and duty-cycle values.
 
-Phase 2 telemetry integration now reads firmware `@TLM1` arm snapshots before capture marker bytes and stores the payload in trial metadata.
+Telemetry integration reads firmware `@TLM1` arm snapshots before capture marker bytes and stores the payload in trial metadata.
 
-Phase 3 ingestion/persistence now writes canonical schema metadata to:
+Ingestion/persistence writes canonical schema metadata to:
 
 - `trials/trial_####/trial_metadata_v2.json`
 
 Capture scripts still write their existing operational metadata files, but canonical firmware authority, FlexPWM timing, controls, stream status, and relative-path file manifests now live in `trial_metadata_v2.json`.
 Operational metadata includes a `schema_v2_path` pointer so downstream tooling can resolve the canonical record directly.
 
-Phase 4 Audacity lifecycle automation records concise `lifecycle_events` with UTC timestamps (launch/open-or-create/import/save/close/error) and persists Audacity status into both operational metadata and schema-v2 metadata.
+Audacity lifecycle automation records concise `lifecycle_events` with UTC timestamps (launch/open-or-create/import/save/close/error) and persists Audacity status into both operational metadata and schema-v2 metadata.
 For each experiment, automation uses `orchestration/<experiment_name>.aup3`: it opens this project when needed, or creates it on first save without issuing an explicit Audacity New command.
 Follow-up trials default to append mode and skip explicit project reopening to avoid "already open in another window" errors; rebuild mode is only forced when track count is successfully queried and is below the required base tracks.
 If Audacity is not running, automation fails fast with a recorded lifecycle error rather than hanging on script-pipe open.
 To reduce post-import/save instability, additional padding is available with `--audacity-pre-save-delay` and `--audacity-post-save-delay`.
 When using `run_trial.py`, these delay flags are forwarded automatically to `capture_teensy_plus_interface.py`.
 
-Phase 5 repository hygiene and workflow stability adds two safeguards:
+Repository hygiene and workflow stability includes two safeguards:
 
-- `run_trial.py` now resolves script/output paths from its own file location, so it behaves consistently regardless of current working directory.
-- `repo_hygiene_check.py` flags accidentally tracked generated artefacts (`.DS_Store`, `__pycache__`, `.pyc`, trial outputs, and experiment Audacity `.aup3` sidecars).
-
-Run hygiene check:
-
-```bash
-cd Code/Python
-python3 repo_hygiene_check.py
-```
+- `run_trial.py` resolves script/output paths from its own file location, so it behaves consistently regardless of current working directory.
+- `.gitignore` excludes generated artefacts (`.DS_Store`, `__pycache__`, `.pyc`, trial outputs, and local Audacity project sidecars).
 
 ## Folder Highlights
 

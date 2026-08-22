@@ -92,7 +92,7 @@ These are useful, but not strictly required for a minimal "sense -> render -> ac
 - `serialctrl.cpp` / `serialctrl.h`: optional host serial override of hardware UI state (used by Max patch control).
 - `capture_stream.cpp` / `capture_stream.h`: optional deterministic capture trigger and streaming for measurement scripts.
 - `harmonics.cpp` / `harmonics.h`: additive harmonic oscillator bank and zero-crossing pitch tracking.
-- `visualAlias.cpp` / `visualAlias.h`: optional visual phase alias output behavior by plugging a 12V LED strip into one of the channels.
+- `visualAlias.cpp` / `visualAlias.h`: optional visual alias output behavior by plugging a 12V LED strip into one of the channels.
 - `SineTable.cpp` / `SineTable.h`: lookup-table sine source used by harmonic/visual helper DSP.
 - `debug.h`: compile-time debug print macros (`DEBUG_PRINT`, `DEBUG_PRINTLN`).
 
@@ -176,7 +176,7 @@ In `Code/LTDM_Kit/render.cpp`:
 In `Code/LTDM_Kit/ui.cpp`:
 
 - TLC5947 LEDs reflect enable/limit/target and measured RMS states.
-- UI scan runs in two-phase mux read/write cycles.
+- UI scan runs in two-step mux read/write cycles.
 - `output()` also prints debug telemetry over serial every ~100 ms (as long as the the python audio capture stream is idle.)
 
 ### Serial override mode
@@ -195,7 +195,6 @@ The Python tools in `Code/Python` are used for measurement, capture automation, 
 
 - `capture_teensy_plus_interface.py`: Capture audio directly from Teensy (what the teensy 'hears' from the EMF sensing circuitry) and 2 channels of audio from a connected audio interface. Optionally import these files directly to audacity.
 - `run_trial.py`: Prompt for trial/profile/duration and launch the capture workflow via named profiles.
-- `repo_hygiene_check.py`: Check for tracked generated artefacts and duplicate Python readme naming.
 - `capture_teensy_stream.py`: Capture Teensy stream only (without interface capture), with optional WAV export.
 - `rigol_capture.py`: Run Rigol DS1054Z waveform/screenshot capture and write trial metadata.
 - `load_rigol_capture.py`: Load and interactively inspect saved Rigol capture files.

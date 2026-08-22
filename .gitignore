@@ -1,6 +1,12 @@
 # macOS
 .DS_Store
 
+# Local-only experiment and DAW project workspaces
+Code/Python/experiments/
+**/*.aup3
+**/*.aup3-shm
+**/*.aup3-wal
+
 # Python cache/build artifacts
 **/__pycache__/
 **/*.pyc
@@ -10,9 +16,6 @@ Code/Python/Python2Audacity.aup3
 Code/Python/Python2Audacity.aup3-shm
 Code/Python/Python2Audacity.aup3-wal
 Code/Python/audacity_recordings/
-Code/Python/experiments/**/orchestration/*.aup3
-Code/Python/experiments/**/orchestration/*.aup3-shm
-Code/Python/experiments/**/orchestration/*.aup3-wal
 
 # Generated LTDM/Rigol experiment capture data
 # Keep code and docs; ignore heavy trial outputs only.
