@@ -28,7 +28,22 @@ import numpy as np
 import h5py
 from datetime import datetime
 from pathlib import Path
-from core.experiment_profile import load_experiment_profile, prompt_experiment_profile, save_experiment_profile
+from core.experiment_profile import (
+    load_experiment_profile,
+    prompt_experiment_profile,
+    prompt_profile_field_changes,
+    resolve_trial_profile_snapshot,
+    save_experiment_profile,
+)
+from core.trial_index import ensure_trial_fields, rebuild_trial_index
+from core.trial_metadata import (
+    get_reference_trial_metadata,
+    infer_trial_status,
+    iso_timestamps_pair,
+    load_trial_metadata,
+    relative_path,
+    save_trial_metadata,
+)
 from rigol.screen import save_screen
 import questionary
 import sys
@@ -102,20 +117,6 @@ def experiment_dir_for_title(title: str) -> Path:
 
 def existing_trial_numbers(exp_dir: Path) -> list[int]:
     return list_existing_trials(exp_dir)
-
-
-def load_trial_manifest(path: Path) -> dict:
-    if not path.exists():
-        return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def save_trial_manifest(path: Path, manifest: dict) -> None:
-    path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
 
 def parse_args():
@@ -316,19 +317,7 @@ def main():
     exp_dir = experiment_dir_for_title(experiment_title)
     exp_defaults = load_experiment_profile(EXPERIMENTS_DIR, experiment_title) or previous_meta
 
-    manifest_defaults: dict[str, str] = {}
-    if args.experiment and args.trial is not None:
-        existing_layout = build_trial_paths(EXPERIMENTS_DIR, experiment_title, int(args.trial), create=False)
-        existing_manifest = load_trial_manifest(existing_layout["trial_manifest_path"])
-        if isinstance(existing_manifest.get("experiment_profile"), dict):
-            manifest_defaults = {
-                str(k): str(v)
-                for k, v in existing_manifest["experiment_profile"].items()
-            }
-
-    if manifest_defaults:
-        current_meta = dict(manifest_defaults)
-    elif args.experiment and args.trial is not None and exp_defaults:
+    if args.experiment and args.trial is not None and exp_defaults:
         current_meta = dict(exp_defaults)
     else:
         current_meta = prompt_experiment_profile(experiment_title, exp_defaults)
@@ -344,12 +333,23 @@ def main():
 
     existing_trials = existing_trial_numbers(exp_dir)
     default_trial = max(existing_trials) + 1 if existing_trials else 1
+    trial_was_prompted = args.trial is None
     trial_number = int(args.trial) if args.trial is not None else ask_trial_number(exp_dir, default_trial)
+    if trial_was_prompted:
+        # Only offer this here when run standalone; run_trial.py already offers it once per trial.
+        current_meta = prompt_profile_field_changes(EXPERIMENTS_DIR, experiment_title) or current_meta
+    trial_fields = ensure_trial_fields(EXPERIMENTS_DIR, experiment_title, trial_number)
+    reference_metadata = get_reference_trial_metadata(EXPERIMENTS_DIR, experiment_title, trial_number)
+    previous_snapshot = reference_metadata.get("experiment_profile_snapshot") if reference_metadata else None
+    profile_snapshot, updated_meta, profile_changed = resolve_trial_profile_snapshot(current_meta, previous_snapshot)
+    if profile_changed:
+        experiment_profile_path = save_experiment_profile(EXPERIMENTS_DIR, experiment_title, updated_meta)
+        current_meta = updated_meta
 
     layout = build_trial_paths(EXPERIMENTS_DIR, experiment_title, trial_number, create=True)
     trial_dir = layout["trial_dir"]
     micro_scope_dir = layout["micro_scope_dir"]
-    trial_manifest_path = layout["trial_manifest_path"]
+    schema_meta_path = layout["trial_metadata_path"]
     capture_dir = next_capture_dir(micro_scope_dir)
     capture_dir.mkdir(parents=True, exist_ok=True)
 
@@ -406,8 +406,8 @@ def main():
         f.attrs["screen_png"]        = str(screen_path) if screen_path else ""
         f.attrs["voltage_formula"]   = "V = (raw - yreference - yorigin) * yincrement"
         f.attrs["experiment_title"]  = current_meta.get("experiment_title", "")
-        f.attrs["operator"]          = current_meta.get("operator", "")
-        f.attrs["description"]       = current_meta.get("description", "")
+        f.attrs["trial_description"]  = trial_fields["trial_description"]
+        f.attrs["experiment_description"] = current_meta.get("experiment_description", "")
         f.attrs["channel_labels"]    = ";".join(
             f"{ch}={current_meta.get('channel_label_' + ch, '')}"
             for ch in CHANNELS
@@ -445,11 +445,9 @@ def main():
         "scope_capture_id": capture_dir.name,
         "capture_time": timestamp,
         "experiment_title": current_meta.get("experiment_title", ""),
-        "description": current_meta.get("description", ""),
-        "operator": current_meta.get("operator", ""),
+        "trial_description": trial_fields["trial_description"],
         "hdf5_path": str(hdf5_path),
         "screen_png": str(screen_path) if screen_path else "",
-        "experiment_profile": current_meta,
         "experiment_profile_path": str(experiment_profile_path),
         "layout": {
             "experiment_dir": str(exp_dir),
@@ -460,7 +458,7 @@ def main():
         **{
             k: v
             for k, v in current_meta.items()
-            if k not in {"experiment_title", "description", "operator"}
+            if k not in {"experiment_title", "experiment_description", "operator"}
         },
     }
     trial_meta_path.write_text(
@@ -469,43 +467,41 @@ def main():
     )
     print(f"✅ Trial metadata saved → {trial_meta_path}")
 
-    manifest = load_trial_manifest(trial_manifest_path)
-    streams = manifest.get("streams") if isinstance(manifest.get("streams"), dict) else {}
+    capture_time_utc, capture_time_local = iso_timestamps_pair()
+    trial_metadata = load_trial_metadata(schema_meta_path)
+    trial_metadata.setdefault("experiment_title", experiment_title)
+    trial_metadata.setdefault("trial_number", trial_number)
+    trial_metadata.setdefault("capture_time_utc", capture_time_utc)
+    trial_metadata.setdefault("capture_time_local", capture_time_local)
+    trial_metadata.setdefault("capture_profile", "rigol_only")
+    trial_metadata["trial_description"] = trial_fields["trial_description"]
+    trial_metadata["experiment_profile_path"] = relative_path(experiment_profile_path, exp_dir)
+    trial_metadata.setdefault("experiment_profile_snapshot", profile_snapshot)
+
+    streams = trial_metadata.get("streams") if isinstance(trial_metadata.get("streams"), dict) else {}
     streams["rigol"] = {
         "requested": True,
-        "enabled": True,
-        "status": "completed",
-        "files": {
-            "hdf5": str(hdf5_path),
-            "png": str(png_path),
-            "screen_png": str(screen_path) if screen_path else "",
-            "metadata": str(trial_meta_path),
-        },
+        "status": "success",
+        "sample_rate_hz": float(srat),
+        "points_per_channel": int(float(mdep)),
+    }
+    trial_metadata["streams"] = streams
+
+    files = trial_metadata.get("files") if isinstance(trial_metadata.get("files"), dict) else {}
+    files["rigol"] = {
+        "hdf5": relative_path(hdf5_path, exp_dir),
+        "png": relative_path(png_path, exp_dir),
+        "screen_png": relative_path(screen_path, exp_dir) if screen_path else "",
         "scope_capture_id": capture_dir.name,
     }
+    trial_metadata["files"] = files
 
-    requested_streams = set(manifest.get("requested_streams", []))
-    completed_streams = set(manifest.get("completed_streams", []))
-    skipped_streams = set(manifest.get("skipped_streams", []))
-    requested_streams.add("rigol")
-    completed_streams.add("rigol")
-    skipped_streams.discard("rigol")
+    trial_metadata["trial_status"] = infer_trial_status(streams)
 
-    manifest.update(
-        {
-            "experiment_title": experiment_title,
-            "trial_number": trial_number,
-            "capture_time": timestamp,
-            "experiment_profile": current_meta,
-            "experiment_profile_path": str(experiment_profile_path),
-            "requested_streams": sorted(requested_streams),
-            "completed_streams": sorted(completed_streams),
-            "skipped_streams": sorted(skipped_streams),
-            "streams": streams,
-        }
-    )
-    save_trial_manifest(trial_manifest_path, manifest)
-    print(f"✅ Trial manifest saved → {trial_manifest_path}")
+    save_trial_metadata(schema_meta_path, trial_metadata)
+    print(f"✅ Trial metadata saved → {schema_meta_path}")
+
+    rebuild_trial_index(EXPERIMENTS_DIR, experiment_title)
 
     # ── Compute voltages for plot ─────────────
     voltages = {
@@ -525,8 +521,9 @@ def main():
         "[6M pts × 4 ch @ 250 MSa/s]"
     )
     title_line2 = (
-        f"{current_meta.get('description', timestamp)}"
-        if current_meta.get('description') else timestamp
+        trial_fields.get("trial_description")
+        or current_meta.get("experiment_description")
+        or timestamp
     )
 
     make_scope_plot(

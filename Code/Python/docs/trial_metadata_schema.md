@@ -1,8 +1,8 @@
-# LTDM Trial Metadata Schema v2
+# LTDM Trial Metadata Schema
 
 Status: Phase 1 complete (approved)
 Owner: LTDM capture workflow
-Last updated: 2026-08-21
+Last updated: 2026-08-23
 
 ## Purpose
 This schema defines the canonical trial metadata contract for LTDM data acquisition.
@@ -12,7 +12,46 @@ It applies to:
 - Rigol captures
 - Audacity timeline/project automation metadata
 
-The schema is designed to be finalised before any true acquisition campaign starts.
+The schema is not versioned; it is expected to be the single finalised contract as the
+workflow matures. The canonical file is `trials/trial_####/trial_metadata.json` — it is the
+only per-trial metadata file (there is no separate `trial_manifest.json` or operational
+metadata file). When a trial is built up across multiple script invocations (for example a
+Teensy+interface capture followed by a Rigol scope capture for the same trial), each script
+loads the existing `trial_metadata.json` and merges in its own `streams`/`files` entries.
+
+Two companion files at the experiment level (in `orchestration/`) hold metadata that is
+intentionally *not* duplicated into `trial_metadata.json` verbatim:
+- `experiment_profile.json`: fields that are normally stable across the whole experiment
+  (`experiment_description`, string/magnet setup, channel labels). Every other user-reported
+  field is copied into each trial's `trial_metadata.json` as `experiment_profile_snapshot`
+  (`experiment_description` is the only field excluded from that snapshot, since it's
+  experiment-scoped, not trial-scoped). `trial_metadata.json` also stores a relative pointer to
+  this file (`experiment_profile_path`).
+  - If a field's value differs from what was used in the previous trial, capture scripts detect
+    this automatically and rewrite that field's value in `experiment_profile.json` to the literal
+    string `"VARIABLE"`. This is a marker, not a usable value: once a field is `"VARIABLE"`, every
+    subsequent trial is prompted for that field's actual value for that trial (defaulting to the
+    previous trial's value), and the prompted value is what's recorded in that trial's
+    `experiment_profile_snapshot` — `experiment_profile.json` itself never holds the real value
+    again once a field is flagged this way.
+  - Right after the trial number is entered (in `run_trial.py`, or in `rigol/capture.py` when run
+    standalone), the user is optionally offered a questionary menu to directly change any
+    user-reported field for the upcoming trial; edits are saved to `experiment_profile.json`
+    immediately, so the change-detection above treats them the same as a hand-edit of the file.
+- `trials_diff.json`: auto-rebuilt after every trial by recursively diffing every trial's
+  `trial_metadata.json`. Nested values are flattened into columns, and only fields whose value
+  actually differs across at least two trials are kept (plus `trial_number`). Generated file
+  lists, capture timestamps, monotonic timing, Audacity lifecycle event timestamps, interface
+  alignment measurements, and interface channel peak/RMS measurements are omitted. Derived host
+  timing measurements are also omitted. Control changes are taken from `controls.interpreted_state`;
+  numeric knob, slider, or pedal values are truncated to two decimal places and only count as
+  changed when the readings differ by more than `0.01`. Button and mode values are compared exactly.
+
+`trial_description` is prompted for on every trial (by whichever capture script starts that trial
+— pre-filled from that same trial's own prior value when overwriting/rerunning a trial) and is
+stored directly on `trial_metadata.json`. The operator is prompted once when the experiment profile
+is created and stored in `experiment_profile.json`.
+next.
 
 ## Core Decisions (locked)
 - Trial identity is experiment_title + trial_number.
@@ -35,36 +74,44 @@ When multiple sources disagree, use this precedence:
 
 ## Top-Level Object
 Required top-level keys:
-- schema_version
 - experiment_title
 - trial_number
+- trial_description
+- operator (stored once in experiment_profile.json)
 - capture_profile
 - trial_status
 - capture_time_utc
 - capture_time_local
 - firmware
-- flexpwm_tdm_timing
+- tdm_timing
 - controls
 - streams
 - files
+- experiment_profile_path
 - experiment_profile_snapshot
+- experiment_profile_path
 
 Optional top-level keys:
+- duration_seconds
+- capture_options
 - timing
 - audacity
 - errors
 
 ## Field Specification
 
-### 1) Identity and versioning
-- schema_version: string, required, fixed value "2.0"
+### 1) Identity
 - experiment_title: string, required
 - trial_number: integer >= 1, required
+- trial_description: string, required (may be empty string; prompted once per trial)
+- operator: string, experiment-scoped (required in experiment_profile.json; prompted once when the profile is created)
 - capture_profile: string, required
 - trial_status: string enum, required
   - allowed: success, failed
 - capture_time_utc: string (ISO 8601 UTC), required
 - capture_time_local: string (ISO 8601 with timezone offset), required
+- duration_seconds: integer, optional
+- capture_options: object, optional (raw capture-script settings, for example port/device names)
 
 ### 2) Timing
 - timing: object, optional
@@ -84,14 +131,8 @@ Optional top-level keys:
 
 ### 3) Firmware authority block
 - firmware: object, required
-  - samplerate_hz: number, required
-  - protocol_version: string, required
-  - build_id: string, optional
-  - git_commit: string, optional
-  - board: string, optional
-  - report_source: string enum, required
-    - allowed: firmware, python_fallback
-  - report_raw: object, optional
+  - report_raw: object, optional (raw firmware arm_snapshot dump, minus message_type/protocol_version;
+    samplerate_hz is available at report_raw.firmware.samplerate_hz and streams.teensy.sample_rate_hz)
 
 ### 4) Controls block
 - controls: object, required
@@ -128,31 +169,27 @@ Assignment map policy:
 - Uncertain or currently unassigned controls must be represented explicitly with N/A.
 - Capture must not fail solely because mapping is uncertain.
 
-### 4b) FlexPWM TDM timing block
-- flexpwm_tdm_timing: object, required
+### 4b) TDM timing block
+- tdm_timing: object, required
 
-- flexpwm_tdm_timing.reference: object, required
-  - time_zero_symbol: string, required, fixed value FLEXPWM2_SM0VAL0
-  - time_zero_cycle: number, required
-
-- flexpwm_tdm_timing.config_constants: object, required
+- tdm_timing.config_constants: object, required
   - samplerate_hz: number, required
   - max_duty_ch1: number, required
   - max_duty_ch2: number, required
   - resolution_pwm_bits: number, required
 
-- flexpwm_tdm_timing.derived: object, required
+- tdm_timing.derived: object, required
   - cycles: number, required
   - val_input: number, required
-  - period_us: number, required
+  - sample_period_us: number, required
   - period_cycles: number, required
   - cycles_formula: string, required
 
-- flexpwm_tdm_timing.consistency_checks: object, required
+- tdm_timing.consistency_checks: object, required
   - all_actuation_start_times_equal: boolean, required
   - note: string, optional
 
-- flexpwm_tdm_timing.timing_table: array, required
+- tdm_timing.timing_table: array, required
   - each row is an object:
     - label: string, required
     - cycle_value: number, required
@@ -161,7 +198,7 @@ Assignment map policy:
 
 Timing table policy:
 - duty_cycle is normalised by sample period from SAMPLERATE.
-- time_us is measured relative to FLEXPWM2_SM0VAL0.
+- time_us is measured relative to FLEXPWM2_SM0VAL0 (time zero; not stored as a metadata field).
 - Include at least these rows:
   - main_sense_pulse_end
   - alt_sense_pulse_start
@@ -169,9 +206,9 @@ Timing table policy:
   - actuation_pulse_start
 
 Recommended conversion formulas:
-- period_us = 1e6 / samplerate_hz
+- sample_period_us = 1e6 / samplerate_hz
 - duty_cycle = 100 * (cycle_value / period_cycles)
-- time_us = (cycle_value - FLEXPWM2_SM0VAL0) * (period_us / period_cycles)
+- time_us = (cycle_value - FLEXPWM2_SM0VAL0) * (sample_period_us / period_cycles)
 
 Current firmware context (for implementation reference):
 - SAMPLERATE, MaxDutyCh1, MaxDutyCh2 are defined in system_config.h.
@@ -227,11 +264,7 @@ Trial failure policy:
   - hdf5: string, optional
   - png: string, optional
   - screen_png: string, optional
-  - metadata_json: string, optional
-
-- files.manifests: object, required
-  - trial_manifest: string, required
-  - trial_metadata: string, required
+  - scope_capture_id: string, optional
 
 ### 7) Audacity
 - audacity: object, optional
@@ -248,9 +281,18 @@ Trial failure policy:
         - allowed: launch_attempt, launch_success, open_project, create_project, import_tracks, save_project, close_project, error
       - details: object
 
-### 8) Experiment snapshot
+### 8) Experiment profile snapshot
+- experiment_profile_path: string, required (relative path to `orchestration/experiment_profile.json`)
 - experiment_profile_snapshot: object, required
-- Numeric fields in this snapshot should be numbers where semantically numeric.
+  - Contains this trial's actual value for every `experiment_profile.json` field except
+    `experiment_title`, `experiment_description`, and `updated_at`.
+  - For a field whose `experiment_profile.json` value is the literal string `"VARIABLE"`, the
+    snapshot holds the value prompted for on this specific trial.
+  - For any other field, the snapshot holds `experiment_profile.json`'s literal value; if that
+    literal value differs from what the previous trial recorded, `experiment_profile.json` is
+    rewritten to `"VARIABLE"` for that field (from then on it's always prompted per-trial).
+- `experiment_description` is experiment-scoped, entered once when the experiment is created, and
+  lives only in `orchestration/experiment_profile.json` (never in per-trial files).
 
 ### 9) Errors
 - errors: array, optional
@@ -262,9 +304,10 @@ Trial failure policy:
 
 ## Minimal Required Record Example
 {
-  "schema_version": "2.0",
   "experiment_title": "FinalForNow",
   "trial_number": 7,
+  "trial_description": "Baseline pluck, magnet at 5cm",
+  "operator": "adamschmidt",
   "capture_profile": "teensy_interface_no_audacity",
   "trial_status": "success",
   "capture_time_utc": "2026-08-21T15:30:00Z",
@@ -274,11 +317,7 @@ Trial failure policy:
     "protocol_version": "1",
     "report_source": "firmware"
   },
-  "flexpwm_tdm_timing": {
-    "reference": {
-      "time_zero_symbol": "FLEXPWM2_SM0VAL0",
-      "time_zero_cycle": 0
-    },
+  "tdm_timing": {
     "config_constants": {
       "samplerate_hz": 20000,
       "max_duty_ch1": 0.35,
@@ -288,7 +327,7 @@ Trial failure policy:
     "derived": {
       "cycles": 622,
       "val_input": 340,
-      "period_us": 50.0,
+      "sample_period_us": 50.0,
       "period_cycles": 7500,
       "cycles_formula": "cycles = (val * (period_cycles + 1)) >> resolution_pwm_bits"
     },
@@ -330,13 +369,11 @@ Trial failure policy:
       "raw_bin": "trials/trial_0007/macro_audio/teensy_stream.bin",
       "ch1_wav": "trials/trial_0007/macro_audio/teensy_stream_ch1.wav",
       "ch2_wav": "trials/trial_0007/macro_audio/teensy_stream_ch2.wav"
-    },
-    "manifests": {
-      "trial_manifest": "trials/trial_0007/trial_manifest.json",
-      "trial_metadata": "trials/trial_0007/trial_audio_capture_metadata.json"
     }
   },
+  "experiment_profile_path": "orchestration/experiment_profile.json",
   "experiment_profile_snapshot": {
-    "operator": "adamschmidt"
+    "string_material": "steel",
+    "magnet_position_cm": "5"
   }
 }

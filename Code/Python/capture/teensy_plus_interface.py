@@ -8,14 +8,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import serial
-from core.experiment_profile import ensure_experiment_profile, ensure_scope_channel_labels
+from core.experiment_profile import (
+    ensure_experiment_profile,
+    ensure_scope_channel_labels,
+    resolve_trial_profile_snapshot,
+    save_experiment_profile,
+)
 from core.path_layout import build_trial_paths
+from core.trial_index import ensure_trial_fields, rebuild_trial_index
 from core.trial_metadata import (
+    get_reference_trial_metadata,
     infer_trial_status,
     iso_timestamps_pair,
     normalise_controls,
-    normalise_flexpwm_timing,
+    normalise_tdm_timing,
     relative_path,
+    trimmed_report_raw,
 )
 
 CMD_ARM = b"A"
@@ -42,10 +50,6 @@ AUDACITY_POST_IMPORT_DELAY_S_DEFAULT = 0.75
 AUDACITY_PRE_SAVE_DELAY_S_DEFAULT = 0.6
 AUDACITY_POST_SAVE_DELAY_S_DEFAULT = 0.4
 DEBUG_LOGGING_ENABLED = False
-
-
-def write_trial_manifest(manifest_path: Path, manifest: dict) -> None:
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
 
 def run_post_rigol_capture(experiment: str, trial: int) -> None:
@@ -123,7 +127,7 @@ def update_audacity_timeline(
     audacity_timeline = {
         "enabled": bool(args.audacity_import),
         "state_path": rel(orchestration_dir / AUDACITY_STATE_FILENAME),
-        "project_path": rel(orchestration_dir / f"{safe_name(args.experiment)}.aup3"),
+        "project_path": rel(exp_dir / "audacity" / f"{safe_name(args.experiment)}.aup3"),
         "records": 0,
         "latest_start_s": 0.0,
         "latest_end_s": 0.0,
@@ -201,8 +205,13 @@ def update_audacity_timeline(
             timeout_s=float(args.audacity_timeout),
             command_spacing_s=float(args.audacity_command_spacing),
         )
-        project_path = orchestration_dir / f"{safe_name(args.experiment)}.aup3"
-        legacy_project_path = orchestration_dir / "audacity_project.aup3"
+        project_path = exp_dir / "audacity" / f"{safe_name(args.experiment)}.aup3"
+        project_path.parent.mkdir(parents=True, exist_ok=True)
+        legacy_project_paths = [
+            orchestration_dir / "audacity" / f"{safe_name(args.experiment)}.aup3",
+            orchestration_dir / f"{safe_name(args.experiment)}.aup3",
+            orchestration_dir / "audacity_project.aup3",
+        ]
         audacity.open()
         add_event("launch_success", {})
         try:
@@ -218,7 +227,8 @@ def update_audacity_timeline(
                         timeout_s=10.0,
                     )
                     add_event("open_project", {"path": rel(project_path), "command": used_cmd})
-                elif legacy_project_path.exists():
+                elif any(path.exists() for path in legacy_project_paths):
+                    legacy_project_path = next(path for path in legacy_project_paths if path.exists())
                     used_cmd, _ = send_checked_any(
                         audacity,
                         [
@@ -1205,6 +1215,15 @@ def main():
             experiment_profile,
             prompt_when_missing=True,
         )
+    trial_fields = ensure_trial_fields(args.output_dir, args.experiment, args.trial)
+    reference_metadata = get_reference_trial_metadata(args.output_dir, args.experiment, args.trial)
+    previous_snapshot = reference_metadata.get("experiment_profile_snapshot") if reference_metadata else None
+    profile_snapshot, updated_profile, profile_changed = resolve_trial_profile_snapshot(
+        experiment_profile, previous_snapshot
+    )
+    if profile_changed:
+        experiment_profile_path = save_experiment_profile(args.output_dir, args.experiment, updated_profile)
+        experiment_profile = updated_profile
 
     layout = build_trial_paths(args.output_dir, args.experiment, args.trial, create=True)
     exp_dir = layout["exp_dir"]
@@ -1212,15 +1231,13 @@ def main():
     macro_audio_dir = layout["macro_audio_dir"]
     orchestration_dir = layout["orchestration_dir"]
     audacity_dir = layout["audacity_dir"]
-    manifest_path = layout["trial_manifest_path"]
 
     macro_audio_dir.mkdir(parents=True, exist_ok=True)
 
     raw_path = macro_audio_dir / "teensy_stream.bin"
     ch1_wav_path = macro_audio_dir / "teensy_stream_Ch1.wav"
     ch2_wav_path = macro_audio_dir / "teensy_stream_ch2.wav"
-    meta_path = trial_dir / "trial_audio_capture_metadata.json"
-    schema_meta_path = trial_dir / "trial_metadata_v2.json"
+    schema_meta_path = trial_dir / "trial_metadata.json"
 
     iface = None
     if args.iface_enable:
@@ -1454,117 +1471,6 @@ def main():
             "latest_end_s": 0.0,
         }
 
-        metadata = {
-            "experiment_title": args.experiment,
-            "trial_number": args.trial,
-            "duration_seconds": duration_seconds,
-            "capture_time": datetime.now().isoformat(),
-            "teensy": {
-                "enabled": bool(args.teensy_enable),
-                "port": args.port,
-                "sample_rate_hz": teensy_sample_rate_hz,
-                "channels": TEENSY_CHANNELS,
-            },
-            "telemetry": {
-                "frames_received": len(telemetry_frames),
-                "arm_snapshot_present": isinstance(arm_snapshot, dict),
-                "firmware_report_source": "firmware" if isinstance(arm_snapshot, dict) else "python_fallback",
-                "protocol_version": str(arm_snapshot.get("protocol_version", "1")) if isinstance(arm_snapshot, dict) else "1",
-            },
-            "debug_logging_enabled": bool(DEBUG_LOGGING_ENABLED),
-            "interface": {
-                "enabled": bool(args.iface_enable),
-                "device": args.iface_device,
-                "sample_rate_hz": args.iface_sample_rate,
-                "channels": args.iface_channels,
-                "start_mode": args.iface_start_mode,
-                "auto_align": bool(args.iface_auto_align),
-                "align_ref_channel": int(args.iface_align_channel),
-                "align_max_offset_s": float(args.iface_align_max_offset_s),
-                "align_envelope_ms": float(args.iface_align_envelope_ms),
-                "align_analysis_hz": int(args.iface_align_analysis_hz),
-                "pre_roll_s": args.iface_pre_roll,
-                "post_roll_s": args.iface_post_roll,
-                "trim_to_teensy": bool(args.iface_trim_to_teensy),
-                "wav_duration_s": iface_stats["duration_s"],
-                "wav_frames": iface_stats["frames"],
-                "channel_rms": iface_stats["rms"],
-                "channel_peak": iface_stats["peak"],
-                "channel_wavs": [str(p) for p in iface_channel_paths],
-                "alignment": {
-                    "lag_teensy_samples": int(lag_teensy_samples),
-                    "lag_iface_samples": int(lag_iface_samples),
-                    "lag_ms": float(1000.0 * lag_iface_samples / args.iface_sample_rate)
-                    if args.iface_sample_rate > 0
-                    else 0.0,
-                    "score": float(align_score),
-                },
-            },
-            "timing": {
-                "t_marker": t_marker,
-                "t_record_cmd": t_record_cmd,
-                "t_capture_done": t_capture_done,
-                "t_teensy_stop": t_stop_cmd,
-                "record_cmd_after_marker_ms": (t_record_cmd - t_marker) * 1000.0 if t_marker is not None and t_record_cmd is not None else None,
-                "teensy_capture_after_marker_s": (t_capture_done - t_marker) if t_marker is not None and t_capture_done is not None else None,
-            },
-            "files": {
-                "raw": str(raw_path) if args.teensy_enable else "",
-                "teensy_ch1_wav": str(ch1_wav_path) if args.teensy_enable else "",
-                "teensy_ch2_wav": str(ch2_wav_path) if args.teensy_enable else "",
-                "interface_ch1_wav": str(iface_channel_paths[0]) if len(iface_channel_paths) > 0 else "",
-                "interface_ch2_wav": str(iface_channel_paths[1]) if len(iface_channel_paths) > 1 else "",
-            },
-            "experiment_profile": experiment_profile,
-            "experiment_profile_path": str(experiment_profile_path),
-            "layout": {
-                "experiment_dir": str(exp_dir),
-                "trial_dir": str(trial_dir),
-                "macro_audio_dir": str(layout["macro_audio_dir"]),
-                "micro_scope_dir": str(layout["micro_scope_dir"]),
-                "sync_dir": str(layout["sync_dir"]),
-            },
-            "audacity_timeline": audacity_timeline,
-        }
-
-        meta_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-
-        stream_states = {
-            "teensy": {
-                "requested": bool(args.teensy_enable),
-                "enabled": bool(args.teensy_enable),
-                "status": "completed" if args.teensy_enable else "skipped",
-                "sample_rate_hz": teensy_sample_rate_hz if args.teensy_enable else None,
-                "files": {
-                    "raw": str(raw_path) if args.teensy_enable else "",
-                    "ch1_wav": str(ch1_wav_path) if args.teensy_enable else "",
-                    "ch2_wav": str(ch2_wav_path) if args.teensy_enable else "",
-                    "metadata": str(meta_path),
-                },
-            },
-            "interface": {
-                "requested": bool(args.iface_enable),
-                "enabled": bool(args.iface_enable),
-                "status": "completed" if args.iface_enable else "skipped",
-                "sample_rate_hz": int(args.iface_sample_rate) if args.iface_enable else None,
-                "files": {
-                    "ch1_wav": str(iface_channel_paths[0]) if len(iface_channel_paths) > 0 else "",
-                    "ch2_wav": str(iface_channel_paths[1]) if len(iface_channel_paths) > 1 else "",
-                },
-            },
-        }
-        manifest = {
-            "experiment_title": args.experiment,
-            "trial_number": args.trial,
-            "capture_time": metadata["capture_time"],
-            "experiment_profile": experiment_profile,
-            "experiment_profile_path": str(experiment_profile_path),
-            "requested_streams": [name for name, state in stream_states.items() if state["requested"]],
-            "completed_streams": [name for name, state in stream_states.items() if state["status"] == "completed"],
-            "skipped_streams": [name for name, state in stream_states.items() if state["status"] == "skipped"],
-            "streams": stream_states,
-            "audacity": audacity_timeline,
-        }
         schema_streams = {
             "teensy": {
                 "requested": bool(args.teensy_enable),
@@ -1577,6 +1483,17 @@ def main():
                 "status": "success" if args.iface_enable else "skipped",
                 "sample_rate_hz": int(args.iface_sample_rate) if args.iface_enable else None,
                 "channels": int(args.iface_channels) if args.iface_enable else None,
+                "wav_duration_s": iface_stats["duration_s"],
+                "channel_rms": iface_stats["rms"],
+                "channel_peak": iface_stats["peak"],
+                "alignment": {
+                    "lag_teensy_samples": int(lag_teensy_samples),
+                    "lag_iface_samples": int(lag_iface_samples),
+                    "lag_ms": float(1000.0 * lag_iface_samples / args.iface_sample_rate)
+                    if args.iface_sample_rate > 0
+                    else 0.0,
+                    "score": float(align_score),
+                },
             },
             "rigol": {
                 "requested": bool(args.post_rigol),
@@ -1584,23 +1501,29 @@ def main():
             },
         }
         capture_time_utc, capture_time_local = iso_timestamps_pair()
-        trial_metadata_v2 = {
-            "schema_version": "2.0",
+        trial_metadata = {
             "experiment_title": args.experiment,
             "trial_number": int(args.trial),
+            "trial_description": trial_fields["trial_description"],
+            "duration_seconds": duration_seconds,
             "capture_profile": "teensy_interface" if args.teensy_enable and args.iface_enable else (
                 "teensy_only" if args.teensy_enable else "interface_only"
             ),
             "trial_status": infer_trial_status(schema_streams),
             "capture_time_utc": capture_time_utc,
             "capture_time_local": capture_time_local,
-            "firmware": {
-                "samplerate_hz": teensy_sample_rate_hz,
-                "protocol_version": str(arm_snapshot.get("protocol_version", "1")) if isinstance(arm_snapshot, dict) else "1",
-                "report_source": "firmware" if isinstance(arm_snapshot, dict) else "python_fallback",
-                "report_raw": arm_snapshot if isinstance(arm_snapshot, dict) else {},
+            "capture_options": {
+                "teensy_port": args.port if args.teensy_enable else "",
+                "iface_device": str(args.iface_device) if args.iface_enable else "",
+                "iface_start_mode": args.iface_start_mode if args.iface_enable else "",
+                "iface_auto_align": bool(args.iface_auto_align),
+                "iface_trim_to_teensy": bool(args.iface_trim_to_teensy),
+                "debug_logging_enabled": bool(DEBUG_LOGGING_ENABLED),
             },
-            "flexpwm_tdm_timing": normalise_flexpwm_timing(arm_snapshot, teensy_sample_rate_hz),
+            "firmware": {
+                "report_raw": trimmed_report_raw(arm_snapshot),
+            },
+            "tdm_timing": normalise_tdm_timing(arm_snapshot, teensy_sample_rate_hz),
             "controls": normalise_controls(arm_snapshot),
             "timing": {
                 "monotonic": {
@@ -1633,10 +1556,6 @@ def main():
                     "ch1_wav": relative_path(iface_channel_paths[0], exp_dir) if len(iface_channel_paths) > 0 else "",
                     "ch2_wav": relative_path(iface_channel_paths[1], exp_dir) if len(iface_channel_paths) > 1 else "",
                 },
-                "manifests": {
-                    "trial_manifest": relative_path(manifest_path, exp_dir),
-                    "trial_metadata": relative_path(schema_meta_path, exp_dir),
-                },
             },
             "audacity": {
                 "enabled": bool(args.audacity_import),
@@ -1644,7 +1563,8 @@ def main():
                 if audacity_timeline.get("state_path")
                 else "",
             },
-            "experiment_profile_snapshot": experiment_profile,
+            "experiment_profile_path": relative_path(experiment_profile_path, exp_dir),
+            "experiment_profile_snapshot": profile_snapshot,
         }
 
         audacity_teensy_ch1_path = ch1_wav_path
@@ -1666,8 +1586,6 @@ def main():
             ch1_wav_path=audacity_teensy_ch1_path,
             ch2_wav_path=audacity_teensy_ch2_path,
         )
-        metadata["audacity_timeline"] = audacity_timeline
-        manifest["audacity"] = audacity_timeline
 
         audacity_schema_block = {
             "enabled": bool(args.audacity_import),
@@ -1690,9 +1608,9 @@ def main():
             audacity_schema_block["project"]["status"] = "saved"
         elif audacity_status == "created":
             audacity_schema_block["project"]["status"] = "created"
-        trial_metadata_v2["audacity"] = audacity_schema_block
+        trial_metadata["audacity"] = audacity_schema_block
         if audacity_timeline.get("error"):
-            trial_metadata_v2.setdefault("errors", []).append(
+            trial_metadata.setdefault("errors", []).append(
                 {
                     "code": "AUDACITY_AUTOMATION_ERROR",
                     "message": str(audacity_timeline.get("error")),
@@ -1700,14 +1618,12 @@ def main():
                 }
             )
 
-        schema_meta_path.write_text(json.dumps(trial_metadata_v2, indent=2), encoding="utf-8")
-        metadata["schema_v2_path"] = str(schema_meta_path)
-        stream_states["teensy"]["files"]["metadata_v2"] = str(schema_meta_path)
+        schema_meta_path.write_text(json.dumps(trial_metadata, indent=2), encoding="utf-8")
 
-        meta_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-        write_trial_manifest(manifest_path, manifest)
+        rebuild_trial_index(args.output_dir, args.experiment)
+
         print(f"Saved capture artifacts in {trial_dir}")
-        print(f"Saved trial manifest to {manifest_path}")
+        print(f"Saved trial metadata to {schema_meta_path}")
 
         if args.post_rigol:
             run_post_rigol_capture(args.experiment, args.trial)

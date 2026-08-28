@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -35,6 +36,20 @@ def default_assignment_entries() -> dict[str, str]:
     for i in range(2):
         entries[f"pedal_{i}"] = "N/A"
     return entries
+
+
+def _set_nested_value(target: dict, path: str, value: object) -> None:
+    parts = [part for part in path.split(".") if part]
+    if not parts:
+        return
+    current = target
+    for part in parts[:-1]:
+        child = current.get(part)
+        if not isinstance(child, dict):
+            child = {}
+            current[part] = child
+        current = child
+    current.setdefault(parts[-1], value)
 
 
 def normalise_controls(arm_snapshot: dict | None) -> dict:
@@ -74,6 +89,11 @@ def normalise_controls(arm_snapshot: dict | None) -> dict:
             if isinstance(parsed_interpreted, dict):
                 interpreted_state = parsed_interpreted
 
+            for index, raw_value in enumerate(raw_sliders):
+                assignment = assignment_entries.get(f"slider_{index}", "N/A")
+                if assignment != "N/A":
+                    _set_nested_value(interpreted_state, assignment, raw_value)
+
     return {
         "raw_state": {
             "buttons": raw_buttons,
@@ -89,8 +109,8 @@ def normalise_controls(arm_snapshot: dict | None) -> dict:
     }
 
 
-def fallback_flexpwm_timing(sample_rate_hz: int) -> dict:
-    period_us = (1000000.0 / float(sample_rate_hz)) if sample_rate_hz > 0 else 0.0
+def fallback_tdm_timing(sample_rate_hz: int) -> dict:
+    sample_period_us = (1000000.0 / float(sample_rate_hz)) if sample_rate_hz > 0 else 0.0
     rows = [
         {
             "label": label,
@@ -101,10 +121,6 @@ def fallback_flexpwm_timing(sample_rate_hz: int) -> dict:
         for label in REQUIRED_TIMING_LABELS
     ]
     return {
-        "reference": {
-            "time_zero_symbol": "FLEXPWM2_SM0VAL0",
-            "time_zero_cycle": 0,
-        },
         "config_constants": {
             "samplerate_hz": sample_rate_hz,
             "max_duty_ch1": 0.0,
@@ -114,7 +130,7 @@ def fallback_flexpwm_timing(sample_rate_hz: int) -> dict:
         "derived": {
             "cycles": 0,
             "val_input": 0,
-            "period_us": period_us,
+            "sample_period_us": sample_period_us,
             "period_cycles": 1,
             "cycles_formula": "cycles = (val * period_cycles) >> resolution_pwm_bits",
         },
@@ -126,12 +142,21 @@ def fallback_flexpwm_timing(sample_rate_hz: int) -> dict:
     }
 
 
-def normalise_flexpwm_timing(arm_snapshot: dict | None, sample_rate_hz: int) -> dict:
+def normalise_tdm_timing(arm_snapshot: dict | None, sample_rate_hz: int) -> dict:
     if not isinstance(arm_snapshot, dict):
-        return fallback_flexpwm_timing(sample_rate_hz)
+        return fallback_tdm_timing(sample_rate_hz)
     timing = arm_snapshot.get("flexpwm_tdm_timing")
     if not isinstance(timing, dict):
-        return fallback_flexpwm_timing(sample_rate_hz)
+        return fallback_tdm_timing(sample_rate_hz)
+
+    timing = dict(timing)
+    timing.pop("reference", None)
+
+    derived = timing.get("derived")
+    if isinstance(derived, dict) and "period_us" in derived:
+        derived = dict(derived)
+        derived["sample_period_us"] = derived.pop("period_us")
+        timing["derived"] = derived
 
     table = timing.get("timing_table")
     if not isinstance(table, list):
@@ -149,6 +174,68 @@ def normalise_flexpwm_timing(arm_snapshot: dict | None, sample_rate_hz: int) -> 
             )
     timing["timing_table"] = table
     return timing
+
+
+def trimmed_report_raw(arm_snapshot: dict | None) -> dict:
+    """report_raw with fields already covered by the firmware/tdm_timing blocks dropped."""
+    if not isinstance(arm_snapshot, dict):
+        return {}
+    trimmed = {
+        key: value
+        for key, value in arm_snapshot.items()
+        if key not in {"message_type", "protocol_version"}
+    }
+    timing = trimmed.get("flexpwm_tdm_timing")
+    if isinstance(timing, dict):
+        trimmed["flexpwm_tdm_timing"] = {
+            key: value
+            for key, value in timing.items()
+            if key not in {"reference", "consistency_checks"}
+        }
+    return trimmed
+
+
+def load_trial_metadata(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_trial_metadata(path: Path, data: dict) -> None:
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def get_reference_trial_metadata(output_dir: str | Path, experiment: str, trial_number: int) -> dict | None:
+    """The trial_metadata.json to use as "the previous value" reference for this trial.
+
+    Prefers this same trial number's own existing metadata (rerunning/overwriting a trial), then
+    falls back to the most recent earlier trial, then any other existing trial.
+    """
+    from core.path_layout import build_experiment_paths, existing_trial_numbers, find_trial_dir
+
+    exp_dir = build_experiment_paths(output_dir, experiment)["exp_dir"]
+    trial_number = int(trial_number)
+
+    own_dir = find_trial_dir(exp_dir, trial_number)
+    if own_dir is not None:
+        own = load_trial_metadata(own_dir / "trial_metadata.json")
+        if own:
+            return own
+
+    other_numbers = [n for n in existing_trial_numbers(exp_dir) if n != trial_number]
+    if not other_numbers:
+        return None
+    prior_numbers = [n for n in other_numbers if n < trial_number]
+    chosen = max(prior_numbers) if prior_numbers else max(other_numbers)
+
+    other_dir = find_trial_dir(exp_dir, chosen)
+    if other_dir is None:
+        return None
+    return load_trial_metadata(other_dir / "trial_metadata.json") or None
 
 
 def infer_trial_status(streams: dict) -> str:

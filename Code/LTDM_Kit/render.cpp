@@ -111,7 +111,7 @@ void render(LorentzContext *context) {
     float fbFactor0 =  context->ch[0].fbGain * ((3.0f * (targetRMS0 - currRMS0)*float(context->buttons[2])) +  1.0*!(context->buttons[2]));
 
     // apply input + noise + harmonics to output
-    context->ch[0].out = context->ch[0].in * fbFactor0 + noiseFactor0 * float(context->buttons[6]) + harmonics0;;
+    context->ch[0].out = context->ch[0].in * fbFactor0 + noiseFactor0 * float(context->buttons[6]) + harmonics0 * float(context->buttons[4]);
     // context->audioOut[1] = fabs(context->audioIn[1] * context->sliders[4] * 4.0f * (2.0f * float(context->polarity[1]) - 1.0f));
 
     // Ch2 gain and noise stuff

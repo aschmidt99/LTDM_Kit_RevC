@@ -149,7 +149,7 @@ def main():
         if meta_path.exists():
             try:
                 meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                description = meta.get("description", "")
+                description = meta.get("trial_description", "")
                 capture_time = meta.get("capture_time", "")
             except Exception:
                 pass
@@ -196,7 +196,7 @@ def main():
 
     # ── Build plot titles from metadata ───────
     exp_title    = metadata.get("experiment_title", chosen_exp)
-    description  = metadata.get("description", "")
+    description  = metadata.get("trial_description") or metadata.get("experiment_description", "")
     capture_time = metadata.get("capture_time", filename.stem)
     channel_labels = parse_channel_labels(metadata.get("channel_labels", ""))
 

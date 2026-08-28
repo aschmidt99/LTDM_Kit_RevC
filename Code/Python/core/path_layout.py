@@ -66,7 +66,7 @@ def build_trial_paths(output_dir: str | Path, experiment: str, trial: int, creat
     micro_scope_dir = trial_dir / "micro_scope"
     sync_dir = trial_dir / "sync"
     qc_dir = trial_dir / "qc"
-    trial_manifest_path = trial_dir / "trial_manifest.json"
+    trial_metadata_path = trial_dir / "trial_metadata.json"
 
     if create:
         exp_dir.mkdir(parents=True, exist_ok=True)
@@ -85,7 +85,7 @@ def build_trial_paths(output_dir: str | Path, experiment: str, trial: int, creat
         "micro_scope_dir": micro_scope_dir,
         "sync_dir": sync_dir,
         "qc_dir": qc_dir,
-        "trial_manifest_path": trial_manifest_path,
+        "trial_metadata_path": trial_metadata_path,
     }
 
 

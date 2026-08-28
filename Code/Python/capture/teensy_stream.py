@@ -3,16 +3,18 @@ import serial
 import struct
 import time
 from pathlib import Path
-from datetime import datetime
 import json
-from core.experiment_profile import ensure_experiment_profile
+from core.experiment_profile import ensure_experiment_profile, resolve_trial_profile_snapshot, save_experiment_profile
 from core.path_layout import build_trial_paths
+from core.trial_index import ensure_trial_fields, rebuild_trial_index
 from core.trial_metadata import (
+    get_reference_trial_metadata,
     infer_trial_status,
     iso_timestamps_pair,
     normalise_controls,
-    normalise_flexpwm_timing,
+    normalise_tdm_timing,
     relative_path,
+    trimmed_report_raw,
 )
 
 CMD_ARM = b'A'
@@ -27,10 +29,6 @@ SAMPLE_RATE_HZ = 20000
 CHANNELS = 2
 ARM_ACK_TIMEOUT_S = 1.0
 ARM_RETRY_COUNT = 5
-
-
-def write_trial_manifest(manifest_path: Path, manifest: dict) -> None:
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
 
 def parse_args():
@@ -179,21 +177,19 @@ def main():
     args = parse_args()
     duration_seconds = args.duration if args.duration is not None else prompt_duration(DEFAULT_DURATION_S)
     experiment_profile, experiment_profile_path, _ = ensure_experiment_profile(args.output_dir, args.experiment)
+    trial_fields = ensure_trial_fields(args.output_dir, args.experiment, args.trial)
+    reference_metadata = get_reference_trial_metadata(args.output_dir, args.experiment, args.trial)
+    previous_snapshot = reference_metadata.get("experiment_profile_snapshot") if reference_metadata else None
+    profile_snapshot, updated_profile, profile_changed = resolve_trial_profile_snapshot(
+        experiment_profile, previous_snapshot
+    )
+    if profile_changed:
+        experiment_profile_path = save_experiment_profile(args.output_dir, args.experiment, updated_profile)
+        experiment_profile = updated_profile
     layout = build_trial_paths(args.output_dir, args.experiment, args.trial, create=True)
     trial_dir = layout["trial_dir"]
     macro_audio_dir = layout["macro_audio_dir"]
     macro_audio_dir.mkdir(parents=True, exist_ok=True)
-
-    metadata = {
-        "experiment_title": args.experiment,
-        "trial_number": args.trial,
-        "duration_seconds": duration_seconds,
-        "sample_rate_hz": SAMPLE_RATE_HZ,
-        "channels": CHANNELS,
-        "capture_time": datetime.now().isoformat(),
-        "experiment_profile": experiment_profile,
-        "experiment_profile_path": str(experiment_profile_path),
-    }
 
     raw_path = macro_audio_dir / "teensy_stream.bin"
     ch1_raw_path = macro_audio_dir / "teensy_stream_ch1.bin"
@@ -201,9 +197,7 @@ def main():
     wav_path = macro_audio_dir / "teensy_stream.wav"
     ch1_wav_path = macro_audio_dir / "teensy_stream_ch1.wav"
     ch2_wav_path = macro_audio_dir / "teensy_stream_ch2.wav"
-    meta_path = trial_dir / "trial_teensy_stream_metadata.json"
-    schema_meta_path = trial_dir / "trial_metadata_v2.json"
-    manifest_path = layout["trial_manifest_path"]
+    schema_meta_path = trial_dir / "trial_metadata.json"
 
     with serial.Serial(args.port, 2000000, timeout=1, dsrdtr=False, rtscts=False, xonxoff=False) as ser:
         time.sleep(0.5)
@@ -266,17 +260,6 @@ def main():
         write_wav(ch2_wav_path, channel_bytes[1], teensy_sample_rate_hz, channels=1)
         print(f"Saved WAV files to {ch1_wav_path} and {ch2_wav_path}")
 
-    metadata["sample_rate_hz"] = teensy_sample_rate_hz
-    metadata["telemetry"] = {
-        "frames_received": len(telemetry_frames),
-        "arm_snapshot_present": isinstance(arm_snapshot, dict),
-        "firmware_report_source": "firmware" if isinstance(arm_snapshot, dict) else "python_fallback",
-        "protocol_version": str(arm_snapshot.get("protocol_version", "1")) if isinstance(arm_snapshot, dict) else "1",
-    }
-
-    meta_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
-    print(f"Saved metadata to {meta_path}")
-
     stream_states = {
         "teensy": {
             "requested": True,
@@ -294,21 +277,22 @@ def main():
         },
     }
     capture_time_utc, capture_time_local = iso_timestamps_pair()
-    trial_metadata_v2 = {
-        "schema_version": "2.0",
+    trial_metadata = {
         "experiment_title": args.experiment,
         "trial_number": int(args.trial),
+        "trial_description": trial_fields["trial_description"],
+        "duration_seconds": duration_seconds,
         "capture_profile": "teensy_only",
         "trial_status": infer_trial_status(stream_states),
         "capture_time_utc": capture_time_utc,
         "capture_time_local": capture_time_local,
-        "firmware": {
-            "samplerate_hz": teensy_sample_rate_hz,
-            "protocol_version": str(arm_snapshot.get("protocol_version", "1")) if isinstance(arm_snapshot, dict) else "1",
-            "report_source": "firmware" if isinstance(arm_snapshot, dict) else "python_fallback",
-            "report_raw": arm_snapshot if isinstance(arm_snapshot, dict) else {},
+        "capture_options": {
+            "teensy_port": args.port,
         },
-        "flexpwm_tdm_timing": normalise_flexpwm_timing(arm_snapshot, teensy_sample_rate_hz),
+        "firmware": {
+            "report_raw": trimmed_report_raw(arm_snapshot),
+        },
+        "tdm_timing": normalise_tdm_timing(arm_snapshot, teensy_sample_rate_hz),
         "controls": normalise_controls(arm_snapshot),
         "streams": stream_states,
         "files": {
@@ -317,52 +301,14 @@ def main():
                 "ch1_wav": relative_path(ch1_wav_path, layout["exp_dir"]),
                 "ch2_wav": relative_path(ch2_wav_path, layout["exp_dir"]),
             },
-            "manifests": {
-                "trial_manifest": relative_path(manifest_path, layout["exp_dir"]),
-                "trial_metadata": relative_path(schema_meta_path, layout["exp_dir"]),
-            },
         },
-        "experiment_profile_snapshot": experiment_profile,
+        "experiment_profile_path": relative_path(experiment_profile_path, layout["exp_dir"]),
+        "experiment_profile_snapshot": profile_snapshot,
     }
-    schema_meta_path.write_text(json.dumps(trial_metadata_v2, indent=2), encoding="utf-8")
-    metadata["schema_v2_path"] = str(schema_meta_path)
-    print(f"Saved schema metadata to {schema_meta_path}")
+    schema_meta_path.write_text(json.dumps(trial_metadata, indent=2), encoding="utf-8")
+    print(f"Saved trial metadata to {schema_meta_path}")
 
-    manifest = {
-        "experiment_title": args.experiment,
-        "trial_number": args.trial,
-        "capture_time": metadata["capture_time"],
-        "experiment_profile": experiment_profile,
-        "experiment_profile_path": str(experiment_profile_path),
-        "requested_streams": ["teensy"],
-        "streams": {
-            "teensy": {
-                "requested": True,
-                "enabled": True,
-                "status": "completed",
-                "sample_rate_hz": teensy_sample_rate_hz,
-                "files": {
-                    "raw": str(raw_path),
-                    "ch1_bin": str(ch1_raw_path),
-                    "ch2_bin": str(ch2_raw_path),
-                    "ch1_wav": str(ch1_wav_path),
-                    "ch2_wav": str(ch2_wav_path),
-                    "metadata": str(meta_path),
-                    "metadata_v2": str(schema_meta_path),
-                },
-            },
-            "interface": {
-                "requested": False,
-                "enabled": False,
-                "status": "skipped",
-                "reason": "not captured by capture/teensy_stream.py",
-            },
-        },
-        "completed_streams": ["teensy"],
-        "skipped_streams": ["interface"],
-    }
-    write_trial_manifest(manifest_path, manifest)
-    print(f"Saved trial manifest to {manifest_path}")
+    rebuild_trial_index(args.output_dir, args.experiment)
 
 
 if __name__ == "__main__":

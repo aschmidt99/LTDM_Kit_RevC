@@ -76,7 +76,8 @@ void readUI(){
   } else {
     if (!serialOverride) {
       buttonStates[currentInput] = (digitalRead(DSIN) == LOW);
-      sliderStates[sliderRemap[currentInput]] = float(analogRead(ASIN)/4096.);
+      // Quantize to 2 decimal places so the reported value always matches what's applied.
+      sliderStates[sliderRemap[currentInput]] = roundf(analogRead(ASIN) * (100.0f / 4096.0f)) * 0.01f;
       if (currentInput == 0) {pedalStates[0] = float(analogRead(FP0)/4096.);}
       else if (currentInput == 1) {pedalStates[1] = float(analogRead(FP1)/4096.);}
     }

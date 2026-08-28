@@ -3,13 +3,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import socket
 import subprocess
 import sys
-import textwrap
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from pathlib import Path
 
-from core.experiment_profile import load_experiment_profile, save_experiment_profile
+from core.experiment_profile import prompt_profile_field_changes
 from core.path_layout import build_experiment_paths, existing_trial_numbers
+from core.trial_metadata import get_reference_trial_metadata
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = str(BASE_DIR / "experiments")
@@ -87,54 +89,6 @@ PROFILE_SETTINGS = {
     },
 }
 
-RESERVED_PROFILE_KEYS = {
-    "experiment_title",
-    "profile_format_version",
-    "updated_at",
-}
-
-PROFILE_FIELD_LABELS = {
-    "duration_seconds": "Default trial duration (s)",
-    "operator": "Operator name",
-    "description": "Short description / notes",
-    "string_material": "String material",
-    "speaking_length_cm": "Speaking length of string (cm)",
-    "string_gauge_mm": "String gauge (mm)",
-    "string_resistance_ohm": "String resistance (ohm)",
-    "string_fundamental_hz": "String fundamental frequency (Hz)",
-    "magnet_grade": "Magnet grade",
-    "magnet_pull_strength_kg": "Magnet pull strength (kg)",
-    "magnet_position_cm": "Magnet position along string (cm)",
-    "magnet_distance_mm": "Magnet distance from string centre (mm)",
-    "magnet_dimensions_mm": "Magnet dimensions (mm x mm x mm)",
-    "magnets_in_stack": "Number of magnets in stack",
-    "channel_label_CHAN1": "Scope channel CHAN1 label",
-    "channel_label_CHAN2": "Scope channel CHAN2 label",
-    "channel_label_CHAN3": "Scope channel CHAN3 label",
-    "channel_label_CHAN4": "Scope channel CHAN4 label",
-}
-
-PROFILE_FIELD_ORDER = [
-    "duration_seconds",
-    "operator",
-    "description",
-    "string_material",
-    "speaking_length_cm",
-    "string_gauge_mm",
-    "string_resistance_ohm",
-    "string_fundamental_hz",
-    "magnet_grade",
-    "magnet_pull_strength_kg",
-    "magnet_position_cm",
-    "magnet_distance_mm",
-    "magnet_dimensions_mm",
-    "magnets_in_stack",
-    "channel_label_CHAN1",
-    "channel_label_CHAN2",
-    "channel_label_CHAN3",
-    "channel_label_CHAN4",
-]
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Prompted LTDM trial runner.")
@@ -157,6 +111,16 @@ def parse_args():
         type=float,
         default=float(DEFAULT_AUDACITY_POST_SAVE_DELAY),
         help="Extra settle time after saving Audacity project.",
+    )
+    parser.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Skip required device connection checks before metadata prompts/capture.",
+    )
+    parser.add_argument(
+        "--preflight-only",
+        action="store_true",
+        help="Check required devices for the selected profile, then exit before metadata prompts/capture.",
     )
     parser.add_argument("--debug", action="store_true", help="Enable verbose [DBG] diagnostics in capture script output")
     return parser.parse_args()
@@ -199,6 +163,16 @@ def suggest_trial_and_duration(state: dict) -> tuple[int, int, set[int]]:
     return suggested_trial, suggested_duration, trials
 
 
+def suggest_duration_for_trial(experiment: str, trial: int, fallback: int) -> int:
+    reference = get_reference_trial_metadata(OUTPUT_DIR, experiment, trial)
+    if isinstance(reference, dict):
+        duration_seconds = reference.get("duration_seconds")
+        if isinstance(duration_seconds, (int, float)) and duration_seconds > 0:
+            return int(max(1, round(float(duration_seconds))))
+
+    return int(max(1, fallback))
+
+
 def prompt_text(prompt: str, default: str | None = None) -> str:
     import questionary
 
@@ -216,7 +190,7 @@ def prompt_int(prompt: str, default: int, min_value: int = 1) -> int:
 
     while True:
         raw = questionary.text(prompt, default=str(default)).ask()
-        text = str(default).strip() if raw is None else str(raw).strip()
+        text = str(default).strip() if raw is None or str(raw).strip() == "" else str(raw).strip()
         try:
             value = int(text)
         except ValueError:
@@ -264,82 +238,6 @@ def suggest_last_experiment(output_dir: str) -> str | None:
     except Exception:
         return None
     return latest.name
-
-
-def _field_label(key: str) -> str:
-    return PROFILE_FIELD_LABELS.get(key, key.replace("_", " "))
-
-
-def maybe_prompt_profile_updates(output_dir: str, experiment: str, trial: int) -> None:
-    if trial < 2:
-        return
-
-    profile = load_experiment_profile(output_dir, experiment)
-    if not profile:
-        return
-
-    import questionary
-
-    if not str(profile.get("duration_seconds", "")).strip():
-        profile["duration_seconds"] = str(DEFAULT_DURATION_S)
-
-    editable_keys = [k for k in PROFILE_FIELD_ORDER if k in profile and k not in RESERVED_PROFILE_KEYS]
-    extras = sorted(k for k in profile.keys() if k not in RESERVED_PROFILE_KEYS and k not in editable_keys)
-    editable_keys.extend(extras)
-    if not editable_keys:
-        return
-
-    changed = False
-    while True:
-        formatted_rows = []
-        for key in editable_keys:
-            label = _field_label(key)
-            current = str(profile.get(key, "")).strip() or "(empty)"
-            formatted_rows.append((key, label, current))
-        max_label_len = max((len(label) for _, label, _ in formatted_rows), default=0)
-
-        choices = [questionary.Choice("no", value="__no__")]
-        for key, label, current in formatted_rows:
-            dots = "." * max(3, (max_label_len - len(label)) + 3)
-            prefix = f"{label} {dots} "
-            if key == "description" and current and current != "(empty)":
-                wrapped = textwrap.wrap(current, width=72, break_long_words=False, break_on_hyphens=False)
-                if wrapped:
-                    first = prefix + wrapped[0]
-                    indent = " " * (len(prefix) + 4)
-                    rest = [indent + line for line in wrapped[1:]]
-                    title = "\n".join([first, *rest])
-                else:
-                    title = prefix + current
-            else:
-                title = prefix + current
-            choices.append(questionary.Choice(title, value=key))
-
-        selected = questionary.select("Change user-reported variable?", choices=choices).ask()
-        if selected in {None, "__no__"}:
-            break
-
-        old_value = str(profile.get(selected, ""))
-        new_value = questionary.text(f"{_field_label(selected)}:", default=old_value).ask()
-        if new_value is None:
-            continue
-
-        cleaned = str(new_value).strip()
-        if selected == "duration_seconds":
-            try:
-                if int(cleaned) < 1:
-                    print("Duration must be >= 1")
-                    continue
-            except ValueError:
-                print("Duration must be an integer")
-                continue
-
-        profile[selected] = cleaned
-        changed = True
-
-    if changed:
-        profile_path = save_experiment_profile(output_dir, experiment, profile)
-        print(f"Updated experiment profile: {profile_path}")
 
 
 def build_capture_command(
@@ -436,8 +334,132 @@ def build_rigol_command(experiment: str, trial: int) -> list[str]:
     ]
 
 
+def _normalize_device_arg(device_arg: str | None):
+    if device_arg is None:
+        return None
+    text = str(device_arg).strip()
+    if text.isdigit():
+        return int(text)
+    return text
+
+
+def preflight_teensy(port: str) -> str:
+    try:
+        import serial
+    except Exception as exc:
+        raise RuntimeError("pyserial is not installed; install it before running Teensy capture") from exc
+
+    try:
+        with serial.Serial(port, 2000000, timeout=1, dsrdtr=False, rtscts=False, xonxoff=False) as ser:
+            if not ser.is_open:
+                raise RuntimeError(f"serial port {port} did not open")
+    except Exception as exc:
+        raise RuntimeError(f"Teensy serial port {port} is not available: {exc}") from exc
+
+    return f"serial port {port} opened"
+
+
+def preflight_audio_interface(device: str | None, channels: int, sample_rate: int) -> str:
+    try:
+        import sounddevice as sd
+    except Exception as exc:
+        raise RuntimeError("sounddevice is not installed; install it before running interface capture") from exc
+
+    resolved_device = _normalize_device_arg(device)
+    try:
+        info = sd.query_devices(resolved_device, kind="input")
+        max_inputs = int(info.get("max_input_channels", 0))
+        if max_inputs < channels:
+            raise RuntimeError(
+                f"device {resolved_device} has only {max_inputs} input channels; requested {channels}"
+            )
+        with sd.InputStream(
+            samplerate=sample_rate,
+            channels=channels,
+            dtype="int16",
+            device=resolved_device,
+            blocksize=0,
+        ):
+            pass
+    except Exception as exc:
+        raise RuntimeError(f"audio interface input device {resolved_device} is not available: {exc}") from exc
+
+    name = str(info.get("name", resolved_device))
+    return f"{name} ({channels} ch @ {sample_rate} Hz) opened"
+
+
+def preflight_rigol() -> str:
+    try:
+        from ds1054z import DS1054Z
+        from rigol.common import SCOPE_IP
+    except Exception as exc:
+        raise RuntimeError("Rigol dependencies are not installed; install ds1054z/python-vxi11 before scope capture") from exc
+
+    try:
+        with socket.create_connection((SCOPE_IP, 80), timeout=3.0):
+            pass
+    except (socket.timeout, ConnectionRefusedError, OSError) as exc:
+        raise RuntimeError(f"scope is not reachable at {SCOPE_IP}: {exc}") from exc
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as ex:
+            scope = ex.submit(DS1054Z, SCOPE_IP).result(timeout=8.0)
+    except FuturesTimeout as exc:
+        raise RuntimeError(f"VXI-11 connection to {SCOPE_IP} timed out") from exc
+    except Exception as exc:
+        raise RuntimeError(f"could not connect to scope at {SCOPE_IP}: {exc}") from exc
+
+    return f"DS1054Z at {SCOPE_IP} responded as {scope.idn}"
+
+
+def run_preflight_checks(teensy: bool, interface: bool, rigol: bool) -> None:
+    checks: list[tuple[str, callable]] = []
+    if teensy:
+        checks.append(("Teensy", lambda: preflight_teensy(DEFAULT_PORT)))
+    if interface:
+        checks.append(
+            (
+                "Audio interface",
+                lambda: preflight_audio_interface(
+                    DEFAULT_IFACE_DEVICE,
+                    int(DEFAULT_IFACE_CHANNELS),
+                    int(DEFAULT_IFACE_SAMPLE_RATE),
+                ),
+            )
+        )
+    if rigol:
+        checks.append(("Rigol", preflight_rigol))
+
+    if not checks:
+        return
+
+    print("\nPreflight connection checks:")
+    failures: list[str] = []
+    for label, check in checks:
+        print(f"  {label}: checking...", end="", flush=True)
+        try:
+            detail = check()
+        except Exception as exc:
+            print(" failed")
+            failures.append(f"{label}: {exc}")
+        else:
+            print(f" ok ({detail})")
+
+    if failures:
+        print("\nRequired connection check failed before trial metadata entry:")
+        for failure in failures:
+            print(f"  - {failure}")
+        print("\nConnect the required device(s), or rerun with --skip-preflight if you need to bypass this check.")
+        raise SystemExit(1)
+
+    print("All required connections are available.\n")
+
+
 def main() -> int:
     args = parse_args()
+
+    if args.skip_preflight and args.preflight_only:
+        raise SystemExit("--skip-preflight cannot be combined with --preflight-only")
 
     if not CAPTURE_SCRIPT.exists():
         print(f"Capture script not found: {CAPTURE_SCRIPT}")
@@ -457,17 +479,12 @@ def main() -> int:
 
     exp_dir = build_experiment_paths(OUTPUT_DIR, experiment)["exp_dir"]
     existing_trials = state_trials | set(existing_trial_numbers(exp_dir))
+    if existing_trials:
+        suggested_trial = max(int(suggested_trial), max(existing_trials) + 1)
 
     print("LTDM trial runner")
     print(f"Experiment: {experiment}")
     print(f"State file: {state_path}")
-
-    if args.trial is not None:
-        if int(args.trial) < 1:
-            raise SystemExit("--trial must be >= 1")
-        trial = int(args.trial)
-    else:
-        trial = prompt_int("Trial number", int(suggested_trial), min_value=1)
 
     profile = resolve_profile(args)
     profile_config = PROFILE_SETTINGS[profile]
@@ -476,38 +493,32 @@ def main() -> int:
     audacity = bool(profile_config["audacity"])
     rigol = bool(profile_config["rigol"])
 
+    if args.trial is not None:
+        if int(args.trial) < 1:
+            raise SystemExit("--trial must be >= 1")
+        trial = int(args.trial)
+    else:
+        trial = prompt_int("Trial number", int(suggested_trial), min_value=1)
+
     duration_s = None
-    if profile != "rigol_only":
-        if args.duration is not None:
-            if int(args.duration) < 1:
-                raise SystemExit("--duration must be >= 1")
-            duration_s = int(args.duration)
-        else:
-            profile_data = load_experiment_profile(OUTPUT_DIR, experiment)
-            raw_duration = str(profile_data.get("duration_seconds", "")).strip() if profile_data else ""
-            if raw_duration:
-                try:
-                    duration_s = int(raw_duration)
-                except ValueError:
-                    duration_s = DEFAULT_DURATION_S
-            else:
-                duration_s = DEFAULT_DURATION_S
+    if args.duration is not None:
+        if int(args.duration) < 1:
+            raise SystemExit("--duration must be >= 1")
+        duration_s = int(args.duration)
+    else:
+        duration_default = suggest_duration_for_trial(experiment, trial, suggested_duration)
+        if profile != "rigol_only":
+            duration_s = prompt_int("Trial duration (seconds)", duration_default, min_value=1)
+
+    prompt_profile_field_changes(OUTPUT_DIR, experiment)
+
+    if not args.skip_preflight:
+        run_preflight_checks(teensy, interface, rigol)
+    if args.preflight_only:
+        return 0
 
     if trial in existing_trials:
         print(f"Trial {trial} already exists. Continuing will rerun/replace that trial in timeline state.")
-
-    maybe_prompt_profile_updates(OUTPUT_DIR, experiment, trial)
-
-    if profile != "rigol_only" and args.duration is None:
-        profile_data = load_experiment_profile(OUTPUT_DIR, experiment)
-        raw_duration = str(profile_data.get("duration_seconds", "")).strip() if profile_data else ""
-        if raw_duration:
-            try:
-                duration_s = int(raw_duration)
-            except ValueError:
-                duration_s = DEFAULT_DURATION_S
-        else:
-            duration_s = DEFAULT_DURATION_S
 
     print("\nResolved profile settings:")
     print(f"  profile: {profile}")
