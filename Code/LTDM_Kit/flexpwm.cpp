@@ -69,7 +69,7 @@ void flexpwm_sm1_isr() {
   //\\ SENSE STAGE //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
   FLEXPWM2_SM1STS = (1 << 12);  // Writing 1 to bit 12 clears the VAL0 interrupt flag
   uint32_t start = ARM_DWT_CYCCNT;
-  delayMicroseconds(3); //small amount of time for 
+  delayMicroseconds(3); //small amount of time for S&H Settle
   // Populate context
   // NEW WAY - omits slow/sequential analogRead()
   // Benchmark testing verefied with scope:

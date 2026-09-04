@@ -126,7 +126,7 @@ void output() {
 
   if (millis() - lastPrint > 100) { // update every 100 ms
 
-    invNumCyclesPerSample = (float)SAMPLERATE / (float)F_BUS_ACTUAL;
+    invNumCyclesPerSample = (float)SAMPLERATE / (float)F_CPU; // ARM_DWT_CYCCNT counts core clock cycles, not bus clock
     lastPrint = millis();
     for (int i = 0; i < 16; i++){
       Serial.print(buttonStates[i]);

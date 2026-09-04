@@ -3,7 +3,7 @@
 #define SYSTEM_CONFIG_H
 
 // #define DEBUG // comment out to turn debug mode off
-constexpr int SAMPLERATE = 20000; // Sample Rate of TDM
+constexpr int SAMPLERATE = 23383; // Sample Rate of TDM //23622
 constexpr int ResolutionPWM = 12; // Resolution of PWM timers
 constexpr int bufferLength = 2000; // Buffer size (for RMS, zero-crossing frequency meas, etc.)
 constexpr float MaxDutyCh1 = 0.35; // Max duty cycle for channel 1 actuation (0.0 to 1.0)
