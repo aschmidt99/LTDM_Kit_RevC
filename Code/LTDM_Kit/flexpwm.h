@@ -56,6 +56,7 @@ void initADC();
 void initFlexPWM();
 void setInterrupts();
 void setOutputFrequency(float frequency);
+void setClockedOutputFrequency();
 void setOutputPWM(uint16_t val);
 
 #endif

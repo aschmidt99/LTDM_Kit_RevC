@@ -40,7 +40,7 @@ void updateHarmonicPitch(int chan, bool polarityHigh) {
 
 float renderHarmonics(int chan) {
   float sum = 0.0f;
-  float phaseIncBase = avgFrequency[chan] / float(SAMPLERATE);
+  float phaseIncBase = avgFrequency[chan] / SAMPLERATE_HZ;
 
   for (int n = 0; n < NUM_HARMONICS; n++) {
     if (harmGain[n] <= 0.0f) continue; // don't bother computing silent harmonics

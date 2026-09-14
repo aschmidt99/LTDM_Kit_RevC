@@ -28,6 +28,18 @@ cd Code/Python
 python3 -m capture.teensy_stream --port /dev/cu.usbmodem199934501 --trial 1 --duration 5 --save-wav
 ```
 
+Send test serial control frames to the Teensy:
+
+```bash
+cd Code/Python
+python3 -m pip install pyserial
+python3 send_serial_control.py --port /dev/cu.usbmodem199934501
+```
+
+This sends the requested 37-byte frame at 115200 baud every 0.5 seconds.
+The two randomized bytes are slider 1 and slider 5, which the firmware uses
+as Channel 1 and Channel 2 target RMS values. Press `Ctrl-C` to stop.
+
 Plot the four GainProgression interface captures:
 
 ```bash

@@ -10,7 +10,7 @@ float renderLEDPulse(float freqHz, float freqOffsetHz, float threshold, float ph
   float pulseFreq = freqHz + freqOffsetHz;
   if (pulseFreq < 0.0f) pulseFreq = 0.0f; // no accidental negative freqs!
 
-  float phaseInc = pulseFreq / float(SAMPLERATE);
+  float phaseInc = pulseFreq / SAMPLERATE_HZ;
   ledPhase += phaseInc;
   if (ledPhase >= 1.0f) ledPhase -=1.0f;
 

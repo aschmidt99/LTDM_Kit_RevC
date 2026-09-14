@@ -144,7 +144,7 @@ void setOutputPWM(uint16_t val) {
   uint32_t Cycles = ((uint32_t)val * (PeriodDurCycles + 1)) >> ResolutionPWM;
   if(Cycles > PeriodDurCycles) Cycles = PeriodDurCycles;
 
-  FLEXPWM2_MCTRL |= FLEXPWM_MCTRL_CLDOK(SM0_MASK | SM1_MASK | SM2_MASK | SM3_MASK);
+  FLEXPWM2_MCTRL |= FLEXPWM_MCTRL_CLDOK(SM1_MASK | SM2_MASK | SM3_MASK);
 
   // FOR REFERENCE:
   // #define SENSE_ALT     4 // FlexPWM 2.0A - alternate sense pulse (in case of small timing adjustments for S&H)
@@ -164,7 +164,6 @@ void setOutputPWM(uint16_t val) {
   // VAL5 = falling edge of B
 
   // EDGE-ALIGN ALL SUBMODULES
-  FLEXPWM2_SM0VAL0 = 0; // alt SENSE pulse
   FLEXPWM2_SM1VAL0 = 0; // main SENSE pulse
   FLEXPWM2_SM2VAL0 = 0; // CH1 ACTUATE
   FLEXPWM2_SM3VAL0 = 0; // CH2 ACTUATE
@@ -172,7 +171,6 @@ void setOutputPWM(uint16_t val) {
   // SENSE pins
   // FLEXPWM2_SM1VAL2 = 0? // SENSE adjust RISING edge (DO NOT ADJUST :)
   FLEXPWM2_SM1VAL3 = Cycles*1.5; // SENSE MAIN - adjust falling edge
-  FLEXPWM2_SM0VAL3 = Cycles*2.0; // SENSE ALT - adjust falling edge
 
   //CH1 ACTUATE
   // PMOS
@@ -190,13 +188,7 @@ void setOutputPWM(uint16_t val) {
   FLEXPWM2_SM3VAL4 = FLEXPWM2_SM1VAL3 + Cycles;         // RISING EDGE
   FLEXPWM2_SM3VAL5 = FLEXPWM2_SM1VAL3 + (Cycles) * 4.0; // FALLING EDGE
 
-  // LED ACTUATE, just cuz
-  FLEXPWM2_SM0VAL4 = FLEXPWM2_SM1VAL3 + Cycles;         // RISING EDGE
-  FLEXPWM2_SM0VAL5 = FLEXPWM2_SM1VAL3 + (Cycles) * 4.0; // FALLING EDGE
-
   // ENABLE OUTPUTS 
-  FLEXPWM2_OUTEN |= FLEXPWM_OUTEN_PWMA_EN(SM0_MASK); // Channel 2.0A - pin 4 Enable
-  FLEXPWM2_OUTEN |= FLEXPWM_OUTEN_PWMB_EN(SM0_MASK); // Channel 2.0B - pin 33 Enable
   FLEXPWM2_OUTEN |= FLEXPWM_OUTEN_PWMA_EN(SM1_MASK); // Channel 2.1A - pin 5 Enable
   FLEXPWM2_OUTEN |= FLEXPWM_OUTEN_PWMA_EN(SM2_MASK); // Channel 2.2A - pin 6 Enable
   FLEXPWM2_OUTEN |= FLEXPWM_OUTEN_PWMB_EN(SM2_MASK); // Channel 2.2B - pin 9 Enable
@@ -204,9 +196,8 @@ void setOutputPWM(uint16_t val) {
   FLEXPWM2_OUTEN |= FLEXPWM_OUTEN_PWMB_EN(SM3_MASK); // Channel 2.3B - pin 37 Enable
   
   // PUSH CHANGES
-  FLEXPWM2_MCTRL |= FLEXPWM_MCTRL_LDOK(SM0_MASK | SM1_MASK | SM2_MASK | SM3_MASK);
+  FLEXPWM2_MCTRL |= FLEXPWM_MCTRL_LDOK(SM1_MASK | SM2_MASK | SM3_MASK);
 
-  *(portConfigRegister(SENSE_ALT)) = 1; //Mask?
   *(portConfigRegister(SENSE_PULSE)) = 1; //Mask?
   *(portConfigRegister(CH1_PACTUATE)) = 1; //Mask?
   *(portConfigRegister(CH1_NACTUATE)) = 1; //Mask?
@@ -214,8 +205,6 @@ void setOutputPWM(uint16_t val) {
   *(portConfigRegister(CH2_NACTUATE)) = 1; //Mask?
   *(portConfigRegister(LED_PULSE)) = 1; //Mask?
 
-  IOMUXC_SW_MUX_CTL_PAD_GPIO_B0_06 = 2; // FLEXPWM2_PWM0_A
-  IOMUXC_SW_MUX_CTL_PAD_GPIO_B0_07 = 2; // FLEXPWM2_PWM0_B
   IOMUXC_SW_MUX_CTL_PAD_GPIO_B0_08 = 2; // FLEXPWM2_PWM1_A
   IOMUXC_SW_MUX_CTL_PAD_GPIO_B0_09 = 2; // FLEXPWM2_PWM1_B
   IOMUXC_SW_MUX_CTL_PAD_GPIO_B0_10 = 2; // FLEXPWM2_PWM2_A
@@ -259,6 +248,36 @@ void setOutputFrequency(float frequency) {
   FLEXPWM2_SM3CTRL = FLEXPWM_SMCTRL_FULL | FLEXPWM_SMCTRL_PRSC(Prescaler);
   FLEXPWM2_SM3VAL1 = CurrentCycles - 1;
   
+  FLEXPWM2_MCTRL |= FLEXPWM_MCTRL_LDOK(SM0_MASK | SM1_MASK | SM2_MASK | SM3_MASK);
+}
+
+void setClockedOutputFrequency() {
+  FLEXPWM2_MCTRL |= FLEXPWM_MCTRL_CLDOK(SM0_MASK | SM1_MASK | SM2_MASK | SM3_MASK);
+
+  // SM0A (pin 4) is the 12.5 MHz clock source. The other submodules use a
+  // 6144-tick bus-clock period, exactly 512 times SM0's 12-tick period.
+  FLEXPWM2_SM0CTRL = FLEXPWM_SMCTRL_FULL | FLEXPWM_SMCTRL_PRSC(0);
+  FLEXPWM2_SM0VAL0 = 0;
+  FLEXPWM2_SM0VAL1 = CLOCK_OUTPUT_PERIOD_TICKS - 1;
+  FLEXPWM2_SM0VAL2 = 0;
+  FLEXPWM2_SM0VAL3 = CLOCK_OUTPUT_PERIOD_TICKS / 2;
+
+    FLEXPWM2_SM1CTRL2 = FLEXPWM_SMCTRL2_INDEP | FLEXPWM_SMCTRL2_WAITEN |
+      FLEXPWM_SMCTRL2_CLK_SEL(0);
+  FLEXPWM2_SM1CTRL = FLEXPWM_SMCTRL_FULL | FLEXPWM_SMCTRL_PRSC(0);
+    FLEXPWM2_SM1VAL1 = SAMPLE_PERIOD_TICKS - 1;
+
+  // SM2 and SM3 retain the sample-rate period used for the actuation pulses.
+  FLEXPWM2_SM2CTRL = FLEXPWM_SMCTRL_FULL | FLEXPWM_SMCTRL_PRSC(0);
+    FLEXPWM2_SM2VAL1 = SAMPLE_PERIOD_TICKS - 1;
+  FLEXPWM2_SM3CTRL = FLEXPWM_SMCTRL_FULL | FLEXPWM_SMCTRL_PRSC(0);
+    FLEXPWM2_SM3VAL1 = SAMPLE_PERIOD_TICKS - 1;
+
+  FLEXPWM2_OUTEN |= FLEXPWM_OUTEN_PWMA_EN(SM0_MASK);
+  FLEXPWM2_OUTEN &= ~FLEXPWM_OUTEN_PWMB_EN(SM0_MASK);
+  *(portConfigRegister(SENSE_ALT)) = 1;
+  IOMUXC_SW_MUX_CTL_PAD_GPIO_B0_06 = 2; // FLEXPWM2_PWM0_A, pin 4
+
   FLEXPWM2_MCTRL |= FLEXPWM_MCTRL_LDOK(SM0_MASK | SM1_MASK | SM2_MASK | SM3_MASK);
 }
 
@@ -308,6 +327,6 @@ void initFlexPWM(){
 
   initADC();
 
-  setOutputFrequency(SAMPLERATE);
+  setClockedOutputFrequency();
   setOutputPWM(340);
 }

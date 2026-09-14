@@ -6,7 +6,8 @@
 #include "system_config.h"
 #include <Arduino.h>
 
-static const uint32_t SAMPLE_RATE_HZ = SAMPLERATE;
+static const uint32_t CAPTURE_SAMPLES_PER_SECOND =
+  (uint32_t)SAMPLERATE_HZ;
 static const uint32_t DEFAULT_CAPTURE_SECONDS = 5;
 static const uint32_t MAX_CAPTURE_SECONDS = 120;
 static const uint32_t CAPTURE_FIFO_WORDS = 8192; // 8K int16 words, ~16KB buffer
@@ -83,7 +84,7 @@ static float time_us_from_zero(uint32_t cycle_value, uint32_t zero_cycle, float 
 static void emit_arm_snapshot_telemetry(uint8_t requested_seconds) {
   const uint32_t time_zero_cycle = (uint32_t)FLEXPWM2_SM0VAL0;
   const uint32_t period_cycles = (uint32_t)FLEXPWM2_SM2VAL1 + 1u;
-  const float period_us = (SAMPLERATE > 0) ? (1000000.0f / (float)SAMPLERATE) : 0.0f;
+  const float period_us = (SAMPLERATE_HZ > 0.0f) ? (1000000.0f / SAMPLERATE_HZ) : 0.0f;
   const uint32_t cycles = ((uint32_t)g_lastOutputPWMVal * period_cycles) >> ResolutionPWM;
 
   const uint32_t main_sense_pulse_end = (uint32_t)FLEXPWM2_SM1VAL3;
@@ -103,7 +104,7 @@ static void emit_arm_snapshot_telemetry(uint8_t requested_seconds) {
   Serial.print((uint32_t)requested_seconds);
   Serial.print(",\"firmware\":{");
   Serial.print("\"samplerate_hz\":");
-  Serial.print((uint32_t)SAMPLERATE);
+  Serial.print(SAMPLERATE_HZ, 6);
   Serial.print(",\"resolution_pwm_bits\":");
   Serial.print((uint32_t)ResolutionPWM);
   Serial.print(",\"max_duty_ch1\":");
@@ -115,7 +116,7 @@ static void emit_arm_snapshot_telemetry(uint8_t requested_seconds) {
   Serial.print(time_zero_cycle);
   Serial.print("},\"config_constants\":{");
   Serial.print("\"samplerate_hz\":");
-  Serial.print((uint32_t)SAMPLERATE);
+  Serial.print(SAMPLERATE_HZ, 6);
   Serial.print(",\"max_duty_ch1\":");
   Serial.print(MaxDutyCh1, 6);
   Serial.print(",\"max_duty_ch2\":");
@@ -240,7 +241,7 @@ static void startCapture(uint32_t seconds) {
   if (seconds == 0 || seconds > MAX_CAPTURE_SECONDS) {
     seconds = DEFAULT_CAPTURE_SECONDS;
   }
-  samplesRemaining = seconds * SAMPLE_RATE_HZ;
+  samplesRemaining = seconds * CAPTURE_SAMPLES_PER_SECOND;
   fifoHead = 0;
   fifoTail = 0;
   fifoCount = 0;
