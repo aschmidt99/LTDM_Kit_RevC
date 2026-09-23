@@ -4,6 +4,7 @@
 #include "harmonics.h"
 #include "visualAlias.h"
 #include "capture_stream.h"
+#include "pinmap.h"
 
 // float fbGain;
 // float adcScale;
@@ -34,9 +35,11 @@ bool renderSetup(LorentzContext *context) {
 
 // called once per sample
 void render(LorentzContext *context) {
+    digitalWriteFast(TEMP_FAULT_RESET, HIGH);
 
     uint32_t start = ARM_DWT_CYCCNT; // for debugging purposes - reporting cylce time
-    
+
+
     // While armed, treat button 8 as a level-trigger so a slightly early or held
     // press still starts capture once the armed state is visible here.
     if (captureStreamIsArmed() && context->buttons[8]) {
@@ -130,4 +133,6 @@ void render(LorentzContext *context) {
     context->ch[1].out = context->ch[1].in * fbFactor1 + noiseFactor1 * float(context->buttons[7]);
     // context->audioOut[1] = fabs(context->audioIn[1] * context->sliders[4] * 4.0f * (2.0f * float(context->polarity[1]) - 1.0f));
     context->renderCycleCount = ARM_DWT_CYCCNT - start;
+
+    digitalWriteFast(TEMP_FAULT_RESET, LOW); 
 }

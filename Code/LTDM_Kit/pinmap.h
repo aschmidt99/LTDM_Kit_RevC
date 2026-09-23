@@ -10,7 +10,8 @@ constexpr int CH1_PACTUATE  = 6; // FlexPWM 2.2A (Val2+3) - Channel 1 Actuate PM
 constexpr int CH1_NACTUATE  = 9; // FlexPWM 2.2B (Val4+5) - Channel 1 Actuate NMOS Negative Pulse
 constexpr int CH2_PACTUATE  = 36; //FlexPWM 2.3A (Val2+3) - Channel 2 Actuate PMOS Positive Pulse
 constexpr int CH2_NACTUATE  = 37; //FlexPWM 2.3B (Val4+5) - Channel 2 Actuate NMOS Negative Pulse
-constexpr int LED_PULSE     = 33; //FlexPWM 2.0B (Val4+5) - An LED pin that I have yet to figure out exactly what to do with
+constexpr int MOTOR_ENN_SYNC = 33; // plain GPIO - momentary button 9 drives motor driver ENN sync line
+constexpr int SYNC_PIN      = 1; // "GPIO1" header - FlexPWM 1.0_X out when SYNC_TX, XBAR1_INOUT16 in when SYNC_RX
 
 constexpr int CH1_ENABLE    = 24; // must be high to permit Channel 1 to be on
 constexpr int CH2_ENABLE    = 25; // must be high to permit Channel 2 to be on
@@ -23,7 +24,7 @@ constexpr int CH2_ADC_PIN       = 15; // (A1?) for rectified analog input
 constexpr int CH2_POLARITY_PIN  = 35; // for assessing polarity of signal (Postive or Negative)
 constexpr int CH2_CURRSENSE_PIN = 26; // (A12) rectified current measurement input
 
-constexpr int GPIO_PIN = 7; // a random pin for debugging and benchmarking
+constexpr int TEMP_FAULT_RESET = 7; // plain GPIO, grounded/floating by default - driven HIGH while button 10 is held
 constexpr int SERVO_PIN = 28; // pin for attaching servo
 
 // INPUTS //

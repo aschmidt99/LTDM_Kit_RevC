@@ -29,7 +29,8 @@ void setup() {
   analogReadAveraging(0);    // Disable averaging (set to 0) for faster reading... 3 seems to be fine, but 4 is far too much
   initUI();                  // initialize the UI (declare pins etc.)
   initFlexPWM();             // initialize FlexPWM
-  pinMode(GPIO_PIN, OUTPUT); // set GPIO_PIN as output
+  pinMode(TEMP_FAULT_RESET, OUTPUT);
+  digitalWriteFast(TEMP_FAULT_RESET, LOW); // grounded by default; driven HIGH while button 10 is held
   renderSetup(&context);     // setup rendering context
   setInterrupts();           // enable interrupts
   initSineTable();           // initialize sine table
