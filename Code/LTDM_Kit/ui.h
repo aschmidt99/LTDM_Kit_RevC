@@ -13,7 +13,8 @@ extern Adafruit_TLC5947 tlc;
 extern volatile bool buttonStates[16];
 extern volatile float sliderStates[16];
 extern volatile float pedalStates[2];
-
+extern volatile float myFreq;
+extern volatile float inputSum;
 void initUI();
 void initServo();
 void readUI();

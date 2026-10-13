@@ -11,6 +11,7 @@ struct Channel {
     float noiseScale;           // amount of noise to put through channel
     float targetRMS;            // the target RMS level (normalized to 0.0f-1.0f)
 
+    float currentPeriod;
     // Hardware pins
     const int adcPin;
     const int polarityPin;

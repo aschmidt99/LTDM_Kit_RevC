@@ -65,6 +65,7 @@ LorentzContext context = {
 void flexpwm_sm1_isr() {
   //\\ SENSE STAGE //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
   FLEXPWM2_SM1STS = (1 << 12);  // Writing 1 to bit 12 clears the VAL0 interrupt flag
+    digitalWriteFast(GPIO_PIN, HIGH);
   uint32_t start = ARM_DWT_CYCCNT;
   delayMicroseconds(3); //small amount of time for 
   // Populate context
@@ -85,7 +86,7 @@ void flexpwm_sm1_isr() {
   context.ch[1].in = ADC2_R0 * 0.0002442f * float((2*digitalRead(context.ch[1].polarityPin) - 1)); // CH2 (0.0002442 is 1/4095 to avoid a divide)
 
   //\\// RENDER //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//\\//\\//\\//\\//\\//
-  digitalWriteFast(GPIO_PIN, HIGH);
+
   render(&context);
 
   //\\ UPDATE FLEXPWM MODULES  //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\/\\//
@@ -114,7 +115,7 @@ void flexpwm_sm1_isr() {
 
   // APPLY CHANGES
   FLEXPWM2_MCTRL |= FLEXPWM_MCTRL_LDOK(SM0_MASK | SM1_MASK | SM2_MASK | SM3_MASK);
-  digitalWriteFast(GPIO_PIN, LOW);
+
 
   // digitalWriteFast(GPIO_PIN, LOW); //  DIAGNOSTICS PIN (Pin 7) LOW
 
@@ -133,6 +134,7 @@ void flexpwm_sm1_isr() {
 
   context.frameCount++;
   context.isrCycleCount = ARM_DWT_CYCCNT - start;
+    digitalWriteFast(GPIO_PIN, LOW);
 }
 
 void setOutputPWM(uint16_t val) {

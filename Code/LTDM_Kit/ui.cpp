@@ -12,10 +12,12 @@ Servo servo;
 
 extern float currRMS0;
 extern float currRMS1;
-
+volatile float inputSum = 0.0f;
 volatile bool buttonStates[16] = {};
 volatile float sliderStates[16] = {};
 volatile float pedalStates[2] = {};
+
+volatile float myFreq = 500.0f;
 
 uint8_t currentInput = 0;
 bool UI_ReadPhase = false;
@@ -117,7 +119,7 @@ void output() {
   // put your main code here, to run repeatedly:
   if (millis() - lastPrint > 100) {
 
-    invNumCyclesPerSample = (float)SAMPLERATE / (float)F_BUS_ACTUAL;
+    invNumCyclesPerSample = (float)SAMPLERATE / (float)F_CPU_ACTUAL;
     lastPrint = millis();
     for (int i = 0; i < 16; i++){
       Serial.print(buttonStates[i]);
@@ -141,6 +143,16 @@ void output() {
     Serial.print(" noiseScale: ");
     Serial.print(" ");
     Serial.print(context.ch[0].noiseScale);
+    Serial.println();
+
+        Serial.print(" myFreq: ");
+    Serial.print(" ");
+    Serial.print(myFreq);
+    Serial.println();
+
+        Serial.print(" inputSum: ");
+    Serial.print(" ");
+    Serial.print(inputSum);
     Serial.println();
 
     Serial.print("adcScale: ");
@@ -180,5 +192,19 @@ void output() {
     Serial.println();
     updateLEDsFromButtons();
     updateServo();
+    Serial.print(" current Period: ");
+    Serial.print(" ");
+    Serial.print(    context.ch[0].currentPeriod);
+    Serial.println();
+    updateLEDsFromButtons();
+    updateServo();
+
+    Serial.print(" frozen Period: ");
+    Serial.print(" ");
+    Serial.print(frozenPeriod);
+    Serial.println();
+    updateLEDsFromButtons();
+    updateServo();
+
   }
 }
