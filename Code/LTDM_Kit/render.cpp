@@ -218,6 +218,7 @@ static inline Lfloat LEAF_midiToFrequency(Lfloat f)
 
 
 tSVF myBandpass;
+tSVF myBandpass2;
 const int numSamples = 200;
 float invNumSamples = 1.0f;
 float buffer0[numSamples] = {};
@@ -245,18 +246,21 @@ uint32_t frozenPeriod = 10;
 bool renderSetup(LorentzContext *context) {
     invNumSamples = 1.0f / (float)numSamples;
     tSVF_init(&myBandpass, SVFTypeBandpass, 1000.0f, 0.6f);
+    tSVF_init(&myBandpass2, SVFTypeBandpass, 1000.0f, 0.6f);
     return true;
 }
 
 // called once per sample
 void render(LorentzContext *context) {
 
+float filteredIn = LEAF_clip(-1.0f, tSVF_tick(myBandpass, context->ch[0].in), 1.0f);
+
     uint32_t start = ARM_DWT_CYCCNT;
 
    #if 0
     uint32_t attack = 0;
 
-    float amplitude = (fabsf(context->ch[0].in));
+    float amplitude = (fabsf(filteredIn));
     if (amplitude > 0.01f)
     {
       attack = 1;
@@ -267,7 +271,7 @@ void render(LorentzContext *context) {
     }
 
 
-    currentSign = (context->ch[0].in > 0.0f);
+    currentSign = (filteredIn.in > 0.0f);
     if (currentSign != previousSign)
     {
       context->ch[0].currentPeriod = periodCounter;
@@ -290,9 +294,10 @@ void render(LorentzContext *context) {
     if ((context->frameCount % int(12 - context->sliders[6] * 12) == 0)) {noise1 = random(-1024, 1024)*0.00097656f;} //0.00097656 is 1/1024 (to avoid the divide)
 
     // CH1 RMS calculation
-    sum0 -= buffer0[sampleIndex] * buffer0[sampleIndex];
-    buffer0[sampleIndex] = fabs(context->ch[0].in);
-    sum0 += fabs(context->ch[0].in) * fabs(context->ch[0].in);
+
+    sum0 -= buffer0[sampleIndex];
+    buffer0[sampleIndex] = (fabs(filteredIn) * fabs(filteredIn));
+    sum0 += buffer0[sampleIndex];
 
     // CH2 RMS Calculation
     sum1 -= buffer1[sampleIndex] * buffer1[sampleIndex];
@@ -302,16 +307,17 @@ void render(LorentzContext *context) {
     sampleIndex = (sampleIndex + 1) % numSamples;
 
     volatile int nanChecker = 0;
-    inputSum = (float)sum0;
-    currRMS0 = sqrt((float)sum0 * invNumSamples);
-    if (isnan(currRMS0))
+    if (sum0 < 0.001f)
     {
-      context->ch[0].measuredRMS = 0.0;
+      sum0 = 0.001f;
     }
-    else
-    {
-        context->ch[0].measuredRMS = currRMS0;
-    }
+    inputSum = sum0;
+
+
+    currRMS0 = sqrt(sum0 * invNumSamples);
+
+    context->ch[0].measuredRMS = currRMS0;
+    
 
     currRMS1 = sqrt((float)sum1 * invNumSamples);
     if (isnan(currRMS1))
@@ -337,8 +343,8 @@ void render(LorentzContext *context) {
     // float targetRMS = context->pedals[0];
 
     float noiseOnOff = 0.0f;
-
-    if (currRMS0 > 0.1f)
+    float noiseThresh = context->sliders[11] * 0.08f;
+    if (currRMS0 > noiseThresh)
     {
       noiseOnOff = 0.0f;
     }
@@ -347,6 +353,7 @@ void render(LorentzContext *context) {
       noiseOnOff = 1.0f;
     }
     float noiseFactor0 = (noise0 * constrain((noiseOnOff), 0.0f, 1.0f) * targetRMS0);
+   noiseFactor0 = tSVF_tick(myBandpass2, noiseFactor0);
     //float noiseFactor0 = (noise0 * constrain((context->ch[0].noiseScale - currRMS0), 0.0f, 1.0f) * targetRMS0);
     float fbFactor0 =  context->ch[0].fbGain * ((3.0f * (targetRMS0 - currRMS0)*float(context->buttons[2])) +  1.0*!(context->buttons[2]));
 
@@ -362,15 +369,17 @@ void render(LorentzContext *context) {
 
     // apply input + noise to output
 
-    myFreq = LEAF_midiToFrequency(context->sliders[8] * 127.0f);
+    myFreq = LEAF_midiToFrequency(context->pedals[1] * 127.0f);
     tSVF_setFreq(myBandpass, myFreq);
-    float myQScaling = context->sliders[10] * 50.0f;
-    float myQ = context->sliders[9]*myQScaling + 0.5f;
+    tSVF_setFreq(myBandpass2, myFreq);
+    //float myQScaling = context->sliders[10] * 50.0f;
+    myQ = context->pedals[0] + 1.0f;
     tSVF_setQ(myBandpass, myQ);
+    tSVF_setQ(myBandpass2, .3f);
     float gainComp =  1.0f / myQ;
 
 
-    context->ch[0].out = tSVF_tick(myBandpass, (context->ch[0].in  * gainComp * fbFactor0  + noiseFactor0));// * float(context->buttons[6]));
+    context->ch[0].out = (filteredIn  * gainComp * fbFactor0  + noiseFactor0);// * float(context->buttons[6]));
 
     #if 0
     if (context->sliders[8] > 0.5f)

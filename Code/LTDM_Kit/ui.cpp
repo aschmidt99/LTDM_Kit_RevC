@@ -18,6 +18,7 @@ volatile float sliderStates[16] = {};
 volatile float pedalStates[2] = {};
 
 volatile float myFreq = 500.0f;
+volatile float myQ = 1.0f;
 
 uint8_t currentInput = 0;
 bool UI_ReadPhase = false;
@@ -153,6 +154,11 @@ void output() {
         Serial.print(" inputSum: ");
     Serial.print(" ");
     Serial.print(inputSum);
+    Serial.println();
+
+          Serial.print(" myQ: ");
+    Serial.print(" ");
+    Serial.print(myQ);
     Serial.println();
 
     Serial.print("adcScale: ");
