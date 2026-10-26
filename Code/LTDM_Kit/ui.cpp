@@ -20,6 +20,8 @@ volatile float pedalStates[2] = {};
 volatile float myFreq = 500.0f;
 volatile float myQ = 1.0f;
 
+volatile int LeafOK = 1;
+
 uint8_t currentInput = 0;
 bool UI_ReadPhase = false;
 uint32_t lastPrint = 0;
@@ -160,6 +162,17 @@ void output() {
     Serial.print(" ");
     Serial.print(myQ);
     Serial.println();
+
+    Serial.print(" LEAF OK: ");
+    Serial.print(" ");
+    Serial.print(LeafOK);
+    Serial.println();
+
+    Serial.print(" heyDummy ");
+    Serial.print(" ");
+
+    Serial.println();
+
 
     Serial.print("adcScale: ");
     Serial.print(context.ch[1].adcScale);

@@ -16,6 +16,7 @@ extern volatile float pedalStates[2];
 extern volatile float myFreq;
 extern volatile float inputSum;
 extern volatile float myQ;
+extern volatile int LeafOK;
 void initUI();
 void initServo();
 void readUI();

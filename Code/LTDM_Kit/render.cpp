@@ -43,9 +43,16 @@ LEAF leaf;
 #define LEAF_MEM_SIZE 10000 //
 char leafMem[LEAF_MEM_SIZE];
 
+//this error callback thing doesn't work yet. Trying to figure out why.
+void LEAF_ErrorCustomCallback(LEAF* const leaf, LEAFErrorType myError)
+{
+    LeafOK = 0;
+}
 // one-time initialisation
 bool renderSetup(LorentzContext *context) {
+    LeafOK = 1;
     LEAF_init(&leaf, SAMPLERATE, leafMem, LEAF_MEM_SIZE, rand());
+    //LEAF_setErrorCallback(&leaf, LEAF_ErrorCustomCallback);
     invNumSamples = 1.0f / (float)numSamples;
     tSVF_init(&myBandpass, SVFTypeBandpass, 1000.0f, 0.6f, &leaf);
     tSVF_init(&myBandpass2, SVFTypeBandpass, 200.0f, 0.6f, &leaf);
